@@ -1,8 +1,7 @@
+import { Meal } from "@/lib/meals";
+import { colors } from "@/styles/global";
 import { Ionicons } from "@expo/vector-icons";
 import { Share, TouchableOpacity } from "react-native";
-
-import { Meal } from "@/storage/meals";
-import { colors } from "@/styles/global";
 
 type ShareButtonProps = {
   meals: Meal[];
@@ -11,12 +10,20 @@ type ShareButtonProps = {
 export default function ShareButton({ meals }: ShareButtonProps) {
   const handleShare = async () => {
     const totals = meals.reduce(
-      (acc, meal) => ({
-        calories: acc.calories + meal.calories,
-        protein: acc.protein + meal.protein,
-        carbs: acc.carbs + meal.carbs,
-        fat: acc.fat + meal.fat,
-      }),
+      (acc, meal) => {
+        const protein = Number(meal.protein || 0);
+        const carbs = Number(meal.carbs || 0);
+        const fat = Number(meal.fat || 0);
+
+        const calories = protein * 4 + carbs * 4 + fat * 9;
+
+        return {
+          calories: acc.calories + calories,
+          protein: acc.protein + protein,
+          carbs: acc.carbs + carbs,
+          fat: acc.fat + fat,
+        };
+      },
       {
         calories: 0,
         protein: 0,
@@ -28,10 +35,10 @@ export default function ShareButton({ meals }: ShareButtonProps) {
     await Share.share({
       message: `ChopperHub Daily Summary
 
-Calories: ${totals.calories}
-Protein: ${totals.protein}g
-Carbohydrates: ${totals.carbs}g
-Fat: ${totals.fat}g
+Calories: ${Math.round(totals.calories)}
+Protein: ${Math.round(totals.protein)}g
+Carbohydrates: ${Math.round(totals.carbs)}g
+Fat: ${Math.round(totals.fat)}g
 
 Meals Logged: ${meals.length}`,
     });

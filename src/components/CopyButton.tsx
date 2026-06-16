@@ -1,4 +1,4 @@
-import { Meal } from "@/storage/meals";
+import { Meal } from "@/lib/meals";
 import { colors } from "@/styles/global";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
@@ -15,26 +15,43 @@ export default function CopyButton({ meals }: CopyButtonProps) {
 
   const handleCopy = async () => {
     const totals = meals.reduce(
-      (acc, meal) => ({
-        calories: acc.calories + meal.calories,
-        protein: acc.protein + meal.protein,
-        carbs: acc.carbs + meal.carbs,
-        fat: acc.fat + meal.fat,
-      }),
+      (acc, meal) => {
+        const protein = Number(meal.protein || 0);
+        const carbs = Number(meal.carbs || 0);
+        const fat = Number(meal.fat || 0);
+
+        const fibre = Number(meal.fibre || 0);
+        const water = Number(meal.water || 0);
+
+        const calories = protein * 4 + carbs * 4 + fat * 9;
+
+        return {
+          calories: acc.calories + calories,
+          protein: acc.protein + protein,
+          carbs: acc.carbs + carbs,
+          fat: acc.fat + fat,
+          fibre: acc.fibre + fibre,
+          water: acc.water + water,
+        };
+      },
       {
         calories: 0,
         protein: 0,
         carbs: 0,
         fat: 0,
+        fibre: 0,
+        water: 0,
       },
     );
 
     const summary = `ChopperHub Daily Summary
 
-Calories: ${totals.calories}
-Protein: ${totals.protein}g
-Carbohydrates: ${totals.carbs}g
-Fat: ${totals.fat}g
+Calories: ${Math.round(totals.calories)}
+Protein: ${totals.protein.toFixed(0)}g
+Carbohydrates: ${totals.carbs.toFixed(0)}g
+Fat: ${totals.fat.toFixed(0)}g
+Fibre: ${totals.fibre.toFixed(0)}g
+Water: ${totals.water.toFixed(1)}L
 
 Meals Logged: ${meals.length}`;
 

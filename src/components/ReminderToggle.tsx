@@ -1,45 +1,76 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useEffect, useState } from "react";
-import { StyleSheet, Switch, Text, View } from "react-native";
-
+import { supabase } from "@/lib/supabase";
 import { colors } from "@/styles/global";
 import {
-    cancelMealReminders,
-    requestPermissions,
-    scheduleMealReminders,
+  cancelMealReminders,
+  requestPermissions,
+  scheduleMealReminders,
 } from "@/utils/notifications";
-
-const REMINDERS_KEY = "remindersEnabled";
+import { useEffect, useState } from "react";
+import { StyleSheet, Switch, Text, View } from "react-native";
 
 export default function ReminderToggle() {
   const [enabled, setEnabled] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
-      const value = await AsyncStorage.getItem(REMINDERS_KEY);
-      setEnabled(value === "true");
-    };
-
-    load();
+    loadReminderPreference();
   }, []);
+
+  const loadReminderPreference = async () => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("reminders_enabled")
+        .eq("id", user.id)
+        .single();
+
+      if (error) {
+        console.log(error);
+        return;
+      }
+
+      setEnabled(data?.reminders_enabled ?? false);
+    } catch (error) {
+      console.log(error);
+    }
+  };
 
   const toggle = async (value: boolean) => {
     try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
       if (value) {
         const granted = await requestPermissions();
 
-        if (!granted) {
-          return;
-        }
+        if (!granted) return;
 
         await scheduleMealReminders();
       } else {
         await cancelMealReminders();
       }
 
-      setEnabled(value);
+      const { error } = await supabase
+        .from("profiles")
+        .update({
+          reminders_enabled: value,
+        })
+        .eq("id", user.id);
 
-      await AsyncStorage.setItem(REMINDERS_KEY, value.toString());
+      if (error) {
+        console.log(error);
+        return;
+      }
+
+      setEnabled(value);
     } catch (error) {
       console.error("Reminder error:", error);
     }
@@ -71,15 +102,11 @@ export default function ReminderToggle() {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: colors.surface,
-
     borderWidth: 1,
     borderColor: colors.border,
-
     borderRadius: 18,
-
     padding: 18,
     marginTop: 24,
-
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",

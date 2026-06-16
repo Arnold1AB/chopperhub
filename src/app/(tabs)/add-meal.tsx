@@ -1,5 +1,6 @@
-import { addMeal } from "@/storage/meals";
+import { addMeal } from "@/lib/meals";
 import { colors, globalStyles } from "@/styles/global";
+import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import { useState } from "react";
@@ -15,82 +16,107 @@ import {
 
 export default function AddMealScreen() {
   const [mealName, setMealName] = useState("");
-  const [calories, setCalories] = useState("");
+  const [quantity, setQuantity] = useState("");
+
   const [protein, setProtein] = useState("");
   const [carbs, setCarbs] = useState("");
   const [fat, setFat] = useState("");
 
+  const [fibre, setFibre] = useState("");
+  const [sugar, setSugar] = useState("");
+  const [sodium, setSodium] = useState("");
+  const [water, setWater] = useState("");
+
+  const [loading, setLoading] = useState(false);
+
   const handleAddMeal = async () => {
-    console.log("BUTTON PRESSED");
-
     try {
-      console.log("Starting validation");
-
       if (!mealName.trim()) {
         Alert.alert("Missing Information", "Please enter a meal name.");
         return;
       }
 
-      if (!calories.trim()) {
-        Alert.alert("Missing Information", "Please enter the calorie value.");
-        return;
-      }
+      setLoading(true);
 
-      console.log("Calling addMeal");
-
-      const savedMeal = await addMeal({
+      await addMeal({
         name: mealName.trim(),
-        calories: Number(calories),
+        quantity: Number(quantity) || 0,
         protein: Number(protein) || 0,
         carbs: Number(carbs) || 0,
         fat: Number(fat) || 0,
+        fibre: Number(fibre) || 0,
+        sugar: Number(sugar) || 0,
+        sodium: Number(sodium) || 0,
+        water: Number(water) || 0,
       });
 
-      console.log("SUCCESSFULLY SAVED");
-      console.log(savedMeal);
-
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert(
-        "Meal Saved",
-        `${mealName} was successfully added to ChopperHub.`,
-        [
-          {
-            text: "OK",
-            onPress: () => {
-              router.replace("/");
-            },
-          },
-        ],
-      );
+
+      Alert.alert("Meal Saved", `${mealName} has been added successfully.`);
 
       setMealName("");
-      setCalories("");
+      setQuantity("");
       setProtein("");
       setCarbs("");
       setFat("");
-    } catch (error) {
-      console.error("SAVE FAILED:", error);
+      setFibre("");
+      setSugar("");
+      setSodium("");
+      setWater("");
 
-      Alert.alert("Error", `Failed to save meal: ${String(error)}`);
+      router.replace("/(tabs)/home");
+    } catch (error: any) {
+      console.error(error);
+      Alert.alert("Unable to Save Meal", error?.message || "Please try again.");
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleClearMeals = () => {
+    Alert.alert(
+      "Clear Meals",
+      "Are you sure you want to clear the entered meal data?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear",
+          style: "destructive",
+          onPress: () => {
+            setMealName("");
+            setQuantity("");
+            setProtein("");
+            setCarbs("");
+            setFat("");
+            setFibre("");
+            setSugar("");
+            setSodium("");
+            setWater("");
+          },
+        },
+      ],
+    );
   };
 
   return (
     <ScrollView
       style={globalStyles.container}
-      contentContainerStyle={styles.contentContainer}
+      contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
-      showsVerticalScrollIndicator={true}
+      showsVerticalScrollIndicator={false}
     >
-      {/* Screen Title */}
+      {/* Back Button */}
+      <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+        <Ionicons name="arrow-back" size={22} color={colors.text} />
+        <Text style={styles.backText}>Back</Text>
+      </TouchableOpacity>
+
       <Text style={globalStyles.title}>Add Meal</Text>
 
-      {/* Subtitle */}
       <Text style={styles.subtitle}>
-        Add a meal to your daily ChopperHub tracker.
+        Log meals, hydration, and nutrition data for your ChopperHub tracker.
       </Text>
 
-      {/* Meal Name */}
       <TextInput
         style={styles.input}
         placeholder="Meal Name"
@@ -99,18 +125,18 @@ export default function AddMealScreen() {
         onChangeText={setMealName}
       />
 
-      {/* Calories */}
       <TextInput
         style={styles.input}
-        placeholder="Calories"
+        placeholder="Quantity (total g/ml)"
         placeholderTextColor={colors.textMuted}
         keyboardType="numeric"
-        value={calories}
-        onChangeText={setCalories}
+        value={quantity}
+        onChangeText={setQuantity}
       />
 
-      {/* Nutrition Row */}
-      <View style={styles.nutritionRow}>
+      <Text style={styles.sectionTitle}>Core Nutrition</Text>
+
+      <View style={styles.row}>
         <TextInput
           style={[styles.input, styles.smallInput]}
           placeholder="Protein (g)"
@@ -119,7 +145,6 @@ export default function AddMealScreen() {
           value={protein}
           onChangeText={setProtein}
         />
-
         <TextInput
           style={[styles.input, styles.smallInput]}
           placeholder="Carbs (g)"
@@ -128,7 +153,6 @@ export default function AddMealScreen() {
           value={carbs}
           onChangeText={setCarbs}
         />
-
         <TextInput
           style={[styles.input, styles.smallInput]}
           placeholder="Fat (g)"
@@ -139,74 +163,143 @@ export default function AddMealScreen() {
         />
       </View>
 
-      {/* Add Meal Button */}
+      <Text style={styles.sectionTitle}>Additional Tracking</Text>
+
+      <View style={styles.row}>
+        <TextInput
+          style={[styles.input, styles.smallInput]}
+          placeholder="Fibre (g)"
+          placeholderTextColor={colors.textMuted}
+          keyboardType="numeric"
+          value={fibre}
+          onChangeText={setFibre}
+        />
+        <TextInput
+          style={[styles.input, styles.smallInput]}
+          placeholder="Sugar (g)"
+          placeholderTextColor={colors.textMuted}
+          keyboardType="numeric"
+          value={sugar}
+          onChangeText={setSugar}
+        />
+        <TextInput
+          style={[styles.input, styles.smallInput]}
+          placeholder="Sodium (mg)"
+          placeholderTextColor={colors.textMuted}
+          keyboardType="numeric"
+          value={sodium}
+          onChangeText={setSodium}
+        />
+      </View>
+
+      <TextInput
+        style={styles.input}
+        placeholder="Water Intake (Litres)"
+        placeholderTextColor={colors.textMuted}
+        keyboardType="numeric"
+        value={water}
+        onChangeText={setWater}
+      />
+
       <TouchableOpacity
-        style={styles.addButton}
-        activeOpacity={0.8}
+        style={[styles.button, loading && styles.buttonDisabled]}
         onPress={handleAddMeal}
+        disabled={loading}
       >
-        <Text style={styles.addButtonText}>Add Meal</Text>
+        <Text style={styles.buttonText}>
+          {loading ? "Saving..." : "Add Meal"}
+        </Text>
       </TouchableOpacity>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  contentContainer: {
+  content: {
     paddingBottom: 40,
-    flexGrow: 1,
+  },
+
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+    gap: 6,
+  },
+
+  backText: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: "600",
   },
 
   subtitle: {
     color: colors.textMuted,
     fontSize: 15,
     marginTop: 8,
-    marginBottom: 10,
+    marginBottom: 28,
+    lineHeight: 22,
+  },
+
+  sectionTitle: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: "700",
+    marginTop: 12,
+    marginBottom: 12,
   },
 
   input: {
     backgroundColor: colors.surface,
-    color: colors.text,
-
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 14,
-
-    paddingVertical: 15,
     paddingHorizontal: 16,
-
+    paddingVertical: 15,
+    color: colors.text,
     fontSize: 16,
-    marginTop: 14,
+    marginBottom: 14,
   },
 
-  nutritionRow: {
+  row: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 14,
+    gap: 10,
   },
 
   smallInput: {
-    width: "31%",
-    marginTop: 0,
-    paddingHorizontal: 10,
-    fontSize: 14,
+    flex: 1,
   },
 
-  addButton: {
+  button: {
     backgroundColor: colors.secondary,
     borderRadius: 14,
-
     paddingVertical: 16,
-    marginTop: 28,
-    marginBottom: 24,
-
+    marginTop: 20,
     alignItems: "center",
-    justifyContent: "center",
   },
 
-  addButtonText: {
-    color: colors.primary,
-    fontSize: 16,
+  buttonDisabled: {
+    opacity: 0.6,
+  },
+
+  clearButton: {
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: 14,
+    paddingVertical: 16,
+    marginTop: 12,
+    alignItems: "center",
+  },
+
+  clearButtonText: {
+    color: colors.text,
     fontWeight: "700",
+    fontSize: 16,
+  },
+
+  buttonText: {
+    color: colors.primary,
+    fontWeight: "700",
+    fontSize: 16,
   },
 });

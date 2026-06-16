@@ -1,48 +1,41 @@
 {
   "expo": {
-    "name": "hub",
+    "name": "ChopperHub",
     "slug": "chopperhub",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
     "scheme": "chopperhub",
+    "icon": "./assets/images/chopperhub-logo.png",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/images/chopperhub-logo.png"
     },
     "android": {
       "package": "com.arnoldab.chopperhub",
+      "versionCode": 2,
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
-      },
-      "predictiveBackGestureEnabled": false
+        "foregroundImage": "./assets/images/chopperhub-logo.png",
+        "backgroundColor": "#0F172A"
+      }
     },
     "web": {
-      "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/chopperhub-logo.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
-          "android": {
-            "image": "./assets/images/splash-icon.png",
-            "imageWidth": 76
-          }
+          "backgroundColor": "#0F172A",
+          "image": "./assets/images/auth-gb2.jpg",
+          "imageWidth": 180
         }
       ]
     ],
     "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
+      "typedRoutes": true
     },
     "extra": {
-      "router": {},
       "eas": {
         "projectId": "b8faad3a-84cc-4623-b1c2-eac2d0f2f18f"
       }

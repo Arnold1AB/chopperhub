@@ -1,14 +1,20 @@
+import { getMeals, Meal } from "@/lib/meals";
+import { globalStyles } from "@/styles/global";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
-import { getMeals, Meal } from "../../storage/meals";
-import { globalStyles } from "../../styles/global";
-import ChopperGrid from "../components/ChopperGrid";
-import CopyButton from "../components/CopyButton";
-import HomeHeader from "../components/HomeHeader";
-import RecentMeals from "../components/RecentMeals";
-import ReminderToggle from "../components/ReminderToggle";
-import ShareButton from "../components/ShareButton";
+
+import ChopperGrid from "@/components/ChopperGrid";
+import CopyButton from "@/components/CopyButton";
+import HomeHeader from "@/components/HomeHeader";
+import RecentMeals from "@/components/RecentMeals";
+import ReminderToggle from "@/components/ReminderToggle";
+import ShareButton from "@/components/ShareButton";
+
+const now = new Date();
+const hour = now.getHours();
+const greeting =
+  hour < 12 ? "Good Morning" : hour < 18 ? "Good Afternoon" : "Good Evening";
 
 export default function HomeScreen() {
   const [meals, setMeals] = useState<Meal[]>([]);
@@ -16,12 +22,10 @@ export default function HomeScreen() {
   const loadMeals = async () => {
     try {
       const data = await getMeals();
-
       setMeals(data);
-
-      console.log("Loaded meals:", data);
     } catch (error) {
-      console.error("Failed to load meals:", error);
+      // Silently fail — user may not be authenticated yet
+      setMeals([]);
     }
   };
 
@@ -43,7 +47,6 @@ export default function HomeScreen() {
       </View>
 
       <HomeHeader />
-
       <ChopperGrid meals={meals} />
       <CopyButton meals={meals} />
       <ReminderToggle />

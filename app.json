@@ -5,11 +5,15 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "scheme": "chopperhub",
+
     "icon": "./assets/images/chopperhub-logo.png",
+
     "userInterfaceStyle": "automatic",
+
     "ios": {
       "icon": "./assets/images/chopperhub-logo.png"
     },
+
     "android": {
       "package": "com.arnoldab.chopperhub",
       "versionCode": 2,
@@ -18,28 +22,32 @@
         "backgroundColor": "#0F172A"
       }
     },
+
     "web": {
       "favicon": "./assets/images/chopperhub-logo.png"
     },
+
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
           "backgroundColor": "#0F172A",
-          "image": "./assets/images/auth-gb2.jpg",
-          "imageWidth": 180
+          "resizeMode": "contain"
         }
       ]
     ],
+
     "experiments": {
       "typedRoutes": true
     },
+
     "extra": {
       "eas": {
         "projectId": "b8faad3a-84cc-4623-b1c2-eac2d0f2f18f"
       }
     },
+
     "owner": "arnoldab79"
   }
 }

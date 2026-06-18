@@ -29,9 +29,11 @@ const callbackUrl = AuthSession.makeRedirectUri({
 export default function Paystack() {
   const [processingPlan, setProcessingPlan] =
     useState<SubscriptionPlan | null>(null);
+  const [paymentError, setPaymentError] = useState("");
 
   const startCheckout = async (plan: SubscriptionPlan) => {
     try {
+      setPaymentError("");
       setProcessingPlan(plan);
 
       const checkout = await initializePaystackCheckout(plan);
@@ -51,8 +53,7 @@ export default function Paystack() {
       router.replace("/(tabs)/home");
     } catch (error: any) {
       console.log("PAYSTACK PROFILE CHECKOUT ERROR:", error);
-      Alert.alert(
-        "Payment Not Started",
+      setPaymentError(
         error?.message ??
           "Unable to open Paystack. Please confirm the payment functions are deployed.",
       );
@@ -78,6 +79,13 @@ export default function Paystack() {
         Continue after your 14-day trial with meal tracking, Meal-lysis
         insights, and daily food and water reminders.
       </Text>
+
+      {paymentError && (
+        <View style={styles.errorBox}>
+          <Ionicons name="alert-circle" size={18} color={colors.accent} />
+          <Text style={styles.errorText}>{paymentError}</Text>
+        </View>
+      )}
 
       {(Object.keys(subscriptionPlans) as SubscriptionPlan[]).map((plan) => {
         const details = subscriptionPlans[plan];
@@ -157,6 +165,22 @@ const styles = StyleSheet.create({
     lineHeight: 19,
     marginTop: 12,
     marginBottom: 14,
+  },
+  errorBox: {
+    backgroundColor: "rgba(255,231,76,0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(255,231,76,0.35)",
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 8,
+    flexDirection: "row",
+    gap: 8,
+  },
+  errorText: {
+    color: colors.textMuted,
+    flex: 1,
+    fontSize: 12,
+    lineHeight: 17,
   },
   planButton: {
     backgroundColor: colors.surfaceElevated,

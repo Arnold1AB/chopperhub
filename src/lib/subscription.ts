@@ -59,6 +59,34 @@ const createTrialAccess = (startedAt: Date): SubscriptionAccess => {
   };
 };
 
+const getFunctionErrorMessage = async (error: unknown) => {
+  const context = (error as { context?: Response })?.context;
+
+  if (context) {
+    try {
+      const payload = await context.clone().json();
+
+      if (typeof payload?.error === "string") {
+        return payload.error;
+      }
+
+      if (typeof payload?.message === "string") {
+        return payload.message;
+      }
+    } catch {
+      // Fall through to the generic message below.
+    }
+  }
+
+  const message = error instanceof Error ? error.message : "";
+
+  if (message.includes("non-2xx")) {
+    return "Payment backend is not ready yet. Please deploy the Paystack Edge Functions and confirm the Paystack secrets are set in Supabase.";
+  }
+
+  return message || "Payment service is unavailable right now.";
+};
+
 export const getSubscriptionAccess = async (): Promise<SubscriptionAccess> => {
   const {
     data: { user },
@@ -122,7 +150,10 @@ export const initializePaystackCheckout = async (plan: SubscriptionPlan) => {
     },
   );
 
-  if (error) throw error;
+  if (error) {
+    throw new Error(await getFunctionErrorMessage(error));
+  }
+
   if (!data?.authorization_url || !data?.reference) {
     throw new Error("Unable to start checkout.");
   }
@@ -150,7 +181,10 @@ export const verifyPaystackCheckout = async (reference: string) => {
     },
   });
 
-  if (error) throw error;
+  if (error) {
+    throw new Error(await getFunctionErrorMessage(error));
+  }
+
   if (!data?.active) {
     throw new Error("Payment has not been confirmed yet.");
   }

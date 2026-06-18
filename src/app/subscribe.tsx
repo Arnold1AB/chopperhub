@@ -97,6 +97,14 @@ export default function SubscribeScreen() {
       contentContainerStyle={styles.content}
       showsVerticalScrollIndicator={false}
     >
+      <TouchableOpacity
+        style={styles.backButton}
+        onPress={() => router.replace("/(tabs)/home")}
+      >
+        <Ionicons name="arrow-back" size={22} color={colors.text} />
+        <Text style={styles.backText}>Back</Text>
+      </TouchableOpacity>
+
       <Text style={globalStyles.title}>Choose Access</Text>
       <Text style={styles.subtitle}>
         Start with 14 days free. Continue with meal tracking, Meal-lysis
@@ -148,6 +156,17 @@ export default function SubscribeScreen() {
 const styles = StyleSheet.create({
   content: {
     paddingBottom: 80,
+  },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+    gap: 6,
+  },
+  backText: {
+    color: colors.text,
+    fontSize: 16,
+    fontWeight: "600",
   },
   loading: {
     flex: 1,

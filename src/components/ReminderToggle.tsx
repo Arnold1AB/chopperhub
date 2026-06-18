@@ -27,7 +27,7 @@ export default function ReminderToggle() {
         .from("profiles")
         .select("reminders_enabled")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.log(error);

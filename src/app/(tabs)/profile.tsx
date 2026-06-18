@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { getProfileCompletion } from "@/lib/profileCompletion";
+import Paystack from "@/components/Paystack";
 import { colors, globalStyles } from "@/styles/global";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -282,6 +283,8 @@ Build better habits.
           </View>
         </View>
       </TouchableOpacity>
+
+      <Paystack />
 
       <View style={styles.menuContainer}>
         <MenuItem

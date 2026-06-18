@@ -70,7 +70,7 @@ export const getSubscriptionAccess = async (): Promise<SubscriptionAccess> => {
 
   const { data: profile, error } = await supabase
     .from("profiles")
-    .select("created_at, trial_started_at, subscription_status, subscription_expires_at")
+    .select("*")
     .eq("id", user.id)
     .maybeSingle();
 

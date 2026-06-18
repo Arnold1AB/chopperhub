@@ -1,6 +1,5 @@
 import { supabase } from "@/lib/supabase";
 import { getProfileCompletion } from "@/lib/profileCompletion";
-import Paystack from "@/components/Paystack";
 import { colors, globalStyles } from "@/styles/global";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -284,9 +283,13 @@ Build better habits.
         </View>
       </TouchableOpacity>
 
-      <Paystack />
-
       <View style={styles.menuContainer}>
+        <MenuItem
+          title="Payments"
+          subtitle="Manage your subscription and Paystack checkout"
+          onPress={() => router.push("/subscriptions" as never)}
+        />
+
         <MenuItem
           title="Update Password"
           subtitle="Secure your account with a new password"

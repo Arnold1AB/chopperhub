@@ -1,23 +1,27 @@
 import { colors, globalStyles } from "@/styles/global";
+import {
+  areNotificationsAvailable,
+  getNotificationsUnavailableMessage,
+  getPermissionStatus,
+  requestPermissions,
+} from "@/utils/notifications";
 import * as Linking from "expo-linking";
-import * as Notifications from "expo-notifications";
 import { useEffect, useState } from "react";
 import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 export default function NotificationsScreen() {
   const [enabled, setEnabled] = useState(false);
+  const notificationsAvailable = areNotificationsAvailable();
 
   const checkPermission = async () => {
-    const settings = await Notifications.getPermissionsAsync();
-
-    setEnabled(settings.granted);
+    setEnabled(await getPermissionStatus());
   };
 
   useEffect(() => {
@@ -25,9 +29,14 @@ export default function NotificationsScreen() {
   }, []);
 
   const enableNotifications = async () => {
-    const result = await Notifications.requestPermissionsAsync();
+    if (!notificationsAvailable) {
+      Alert.alert("Development Build Required", getNotificationsUnavailableMessage());
+      return;
+    }
 
-    if (result.granted) {
+    const granted = await requestPermissions();
+
+    if (granted) {
       setEnabled(true);
 
       Alert.alert(
@@ -68,7 +77,11 @@ export default function NotificationsScreen() {
           {enabled ? "Enabled" : "Disabled"}
         </Text>
 
-        {!enabled && (
+        {!notificationsAvailable && (
+          <Text style={styles.body}>{getNotificationsUnavailableMessage()}</Text>
+        )}
+
+        {notificationsAvailable && !enabled && (
           <TouchableOpacity
             style={styles.primaryButton}
             onPress={enableNotifications}

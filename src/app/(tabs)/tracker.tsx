@@ -22,7 +22,6 @@ export default function Tracker() {
   const [totals, setTotals] = useState({
     meals: 0,
     calories: 0,
-    quantity: 0,
     protein: 0,
     carbs: 0,
     fat: 0,
@@ -32,17 +31,20 @@ export default function Tracker() {
     water: 0,
   });
 
-  const loadTracker = async () => {
+  const loadTracker = useCallback(async () => {
     try {
       setLoading(true);
 
       const meals = await getMeals();
 
-      const today = new Date().toISOString().split("T")[0];
+      const now = new Date();
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
-      const todaysMeals = meals.filter(
-        (meal) => meal.created_at.split("T")[0] === today,
-      );
+      const todaysMeals = meals.filter((meal) => {
+        const createdAt = new Date(meal.created_at);
+        return createdAt >= start && createdAt < end;
+      });
 
       const calculated = todaysMeals.reduce(
         (acc, meal) => {
@@ -55,7 +57,6 @@ export default function Tracker() {
           return {
             meals: acc.meals + 1,
             calories: acc.calories + calories,
-            quantity: acc.quantity + Number(meal.quantity || 0),
             protein: acc.protein + protein,
             carbs: acc.carbs + carbs,
             fat: acc.fat + fat,
@@ -68,7 +69,6 @@ export default function Tracker() {
         {
           meals: 0,
           calories: 0,
-          quantity: 0,
           protein: 0,
           carbs: 0,
           fat: 0,
@@ -83,7 +83,7 @@ export default function Tracker() {
 
       if (calculated.meals === 0) {
         setSummary(
-          "Hi, log your meals for today. Remember, what you is who you are.",
+          "Hi, log your meals for today. Small consistent choices make your nutrition easier to understand.",
         );
         setLoading(false);
         return;
@@ -105,19 +105,18 @@ export default function Tracker() {
       setSummary(aiSummary);
     } catch (error) {
       console.log("TRACKER ERROR:", error);
-      setSummary("Unable to generate summary.");
+      setSummary("Meal-lysis is unable to generate analysis right now.");
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       loadTracker();
-    }, []),
+    }, [loadTracker]),
   );
 
-  // ✅ REAL DELETE FUNCTION
   const clearTodayMeals = async () => {
     try {
       const {
@@ -153,8 +152,12 @@ export default function Tracker() {
     }
   };
 
-  // ✅ BUTTON HANDLER
   const handleClearTodayMeals = () => {
+    if (totals.meals === 0) {
+      Alert.alert("Nothing to Clear", "No meals have been logged today.");
+      return;
+    }
+
     Alert.alert("Clear Today", "Delete all meals logged today?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -167,7 +170,6 @@ export default function Tracker() {
             setTotals({
               meals: 0,
               calories: 0,
-              quantity: 0,
               protein: 0,
               carbs: 0,
               fat: 0,
@@ -192,12 +194,26 @@ export default function Tracker() {
   };
 
   return (
-    <ScrollView style={globalStyles.container}>
+    <ScrollView
+      style={globalStyles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
       <View style={styles.header}>
         <Text style={styles.trackerTitle}>Tracker</Text>
 
-        <TouchableOpacity onPress={handleClearTodayMeals}>
-          <Text style={styles.clearToday}>Clear Today</Text>
+        <TouchableOpacity
+          onPress={handleClearTodayMeals}
+          disabled={loading || totals.meals === 0}
+        >
+          <Text
+            style={[
+              styles.clearToday,
+              (loading || totals.meals === 0) && styles.clearTodayDisabled,
+            ]}
+          >
+            Clear Today
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -209,7 +225,7 @@ export default function Tracker() {
         style={styles.collapseHeader}
         onPress={() => setExpanded(!expanded)}
       >
-        <Text style={styles.collapseTitle}>Today's Analytics</Text>
+        <Text style={styles.collapseTitle}>{"Today's Analytics"}</Text>
         <Text style={styles.collapseArrow}>{expanded ? "▲" : "▼"}</Text>
       </TouchableOpacity>
 
@@ -225,7 +241,7 @@ export default function Tracker() {
       )}
 
       <View style={styles.aiCard}>
-        <Text style={styles.aiTitle}>ChopperHub Assistant</Text>
+        <Text style={styles.aiTitle}>Meal-lysis</Text>
 
         {loading ? (
           <ActivityIndicator size="small" color={colors.primary} />
@@ -238,6 +254,9 @@ export default function Tracker() {
 }
 
 const styles = StyleSheet.create({
+  content: {
+    paddingBottom: 120,
+  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -257,6 +276,10 @@ const styles = StyleSheet.create({
   clearToday: {
     color: "#EF4444",
     fontWeight: "800",
+  },
+  clearTodayDisabled: {
+    color: colors.textMuted,
+    opacity: 0.55,
   },
   collapseHeader: {
     backgroundColor: colors.surface,

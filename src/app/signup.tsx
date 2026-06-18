@@ -19,6 +19,27 @@ WebBrowser.maybeCompleteAuthSession();
 
 const redirectUrl = AuthSession.makeRedirectUri();
 
+const createSessionFromUrl = async (url: string) => {
+  const [, hash = ""] = url.split("#");
+  const query = url.split("?")[1]?.split("#")[0] ?? "";
+  const params = new URLSearchParams(`${query}&${hash}`);
+  const errorDescription = params.get("error_description");
+  const accessToken = params.get("access_token");
+  const refreshToken = params.get("refresh_token");
+
+  if (errorDescription) throw new Error(errorDescription);
+  if (!accessToken || !refreshToken) return null;
+
+  const { data, error } = await supabase.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+
+  if (error) throw error;
+
+  return data.session;
+};
+
 export default function SignUpScreen() {
   const [fullName, setFullName] = useState("");
   const [phone, setPhone] = useState("");
@@ -96,8 +117,7 @@ export default function SignUpScreen() {
       });
 
       if (profileError) {
-        Alert.alert("Profile Error", profileError.message);
-        return;
+        console.log("PROFILE CREATE WARNING:", profileError);
       }
 
       const {
@@ -105,7 +125,7 @@ export default function SignUpScreen() {
       } = await supabase.auth.getSession();
 
       if (session) {
-        router.replace("/(tabs)/home");
+        router.replace("/");
         return;
       }
 
@@ -125,7 +145,7 @@ export default function SignUpScreen() {
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
-        options: { redirectTo: redirectUrl },
+        options: { redirectTo: redirectUrl, skipBrowserRedirect: true },
       });
 
       if (error) {
@@ -139,7 +159,11 @@ export default function SignUpScreen() {
       );
 
       if (result.type === "success") {
-        router.replace("/(tabs)/home");
+        const session = await createSessionFromUrl(result.url);
+
+        if (session) {
+          router.replace("/");
+        }
       }
     } catch (error) {
       console.log("GOOGLE ERROR:", error);
@@ -174,44 +198,52 @@ export default function SignUpScreen() {
           onChangeText={setEmail}
         />
 
-        <TextInput
-          placeholder="Password"
-          placeholderTextColor="#ccc"
-          style={styles.input}
-          secureTextEntry
-          value={password}
-          onChangeText={setPassword}
-        />
+        <View style={styles.passwordInput}>
+          <TextInput
+            placeholder="Password"
+            placeholderTextColor="#ccc"
+            style={styles.passwordTextInput}
+            secureTextEntry={!showNewPassword}
+            value={password}
+            onChangeText={setPassword}
+          />
 
-        <TextInput
-          placeholder="Confirm Password"
-          placeholderTextColor="#ccc"
-          style={styles.input}
-          secureTextEntry
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-        />
+          <TouchableOpacity
+            style={styles.eyeButton}
+            onPress={() => setShowNewPassword(!showNewPassword)}
+          >
+            <Ionicons
+              name={showNewPassword ? "eye-off-outline" : "eye-outline"}
+              size={22}
+              color="#B0B0B0"
+            />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.passwordInput}>
+          <TextInput
+            placeholder="Confirm Password"
+            placeholderTextColor="#ccc"
+            style={styles.passwordTextInput}
+            secureTextEntry={!showConfirmPassword}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+          />
+
+          <TouchableOpacity
+            style={styles.eyeButton}
+            onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+          >
+            <Ionicons
+              name={showConfirmPassword ? "eye-off-outline" : "eye-outline"}
+              size={22}
+              color="#B0B0B0"
+            />
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity style={styles.button} onPress={handleSignUp}>
           <Text style={styles.buttonText}>Sign Up</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={() => setShowNewPassword(!showNewPassword)}>
-          <Ionicons
-            name={showNewPassword ? "eye-outline" : "eye-off-outline"}
-            size={22}
-            color="#B0B0B0"
-          />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-        >
-          <Ionicons
-            name={showConfirmPassword ? "eye-off-outline" : "eye-outline"}
-            size={22}
-            color="#B0B0B0"
-          />
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -255,6 +287,28 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     marginBottom: 15,
     color: "#fff",
+  },
+  passwordInput: {
+    backgroundColor: "rgba(255,255,255,0.1)",
+    borderRadius: 10,
+    marginBottom: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    height: 48,
+    paddingLeft: 15,
+  },
+  passwordTextInput: {
+    color: "#fff",
+    flex: 1,
+    height: "100%",
+    padding: 0,
+    paddingRight: 8,
+  },
+  eyeButton: {
+    height: 48,
+    width: 42,
+    alignItems: "center",
+    justifyContent: "center",
   },
   button: {
     backgroundColor: "#ff7a00",

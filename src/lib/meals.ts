@@ -22,20 +22,12 @@ export type Meal = {
   created_at: string;
 };
 
-async function getCurrentUser() {
+export async function getMeals(): Promise<Meal[]> {
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user) {
-    throw new Error("User not authenticated");
-  }
-
-  return user;
-}
-
-export async function getMeals(): Promise<Meal[]> {
-  const user = await getCurrentUser();
+  if (!user) return [];
 
   const { data, error } = await supabase
     .from("meals")
@@ -66,7 +58,13 @@ export async function addMeal(meal: {
 
   water: number;
 }): Promise<Meal> {
-  const user = await getCurrentUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Please sign in before adding a meal.");
+  }
 
   const { data, error } = await supabase
     .from("meals")
@@ -108,7 +106,13 @@ export async function deleteMeal(id: string): Promise<void> {
 }
 
 export async function clearAllMeals(): Promise<void> {
-  const user = await getCurrentUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    throw new Error("Please sign in before clearing meals.");
+  }
 
   const { error } = await supabase
     .from("meals")
@@ -178,13 +182,22 @@ export async function getNutritionSummary() {
 }
 
 export async function getTodayMeals() {
-  const today = new Date().toISOString().split("T")[0];
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return [];
+
+  const now = new Date();
+  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
   const { data, error } = await supabase
     .from("meals")
     .select("*")
-    .gte("created_at", `${today}T00:00:00`)
-    .lt("created_at", `${today}T23:59:59`);
+    .eq("user_id", user.id)
+    .gte("created_at", start.toISOString())
+    .lt("created_at", end.toISOString());
 
   if (error) throw error;
 
@@ -204,20 +217,12 @@ export async function clearTodayMeals() {
 
   const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
 
-  console.log("USER ID:", user.id);
-  console.log("START:", start.toISOString());
-  console.log("END:", end.toISOString());
-
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from("meals")
     .delete()
     .eq("user_id", user.id)
     .gte("created_at", start.toISOString())
-    .lt("created_at", end.toISOString())
-    .select();
-
-  console.log("DELETED ROWS:", data);
-  console.log("DELETE ERROR:", error);
+    .lt("created_at", end.toISOString());
 
   if (error) {
     throw error;

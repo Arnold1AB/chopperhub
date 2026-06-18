@@ -16,7 +16,6 @@ import {
 
 export default function AddMealScreen() {
   const [mealName, setMealName] = useState("");
-  const [quantity, setQuantity] = useState("");
 
   const [protein, setProtein] = useState("");
   const [carbs, setCarbs] = useState("");
@@ -40,7 +39,7 @@ export default function AddMealScreen() {
 
       await addMeal({
         name: mealName.trim(),
-        quantity: Number(quantity) || 0,
+        quantity: 0,
         protein: Number(protein) || 0,
         carbs: Number(carbs) || 0,
         fat: Number(fat) || 0,
@@ -55,7 +54,6 @@ export default function AddMealScreen() {
       Alert.alert("Meal Saved", `${mealName} has been added successfully.`);
 
       setMealName("");
-      setQuantity("");
       setProtein("");
       setCarbs("");
       setFat("");
@@ -84,7 +82,6 @@ export default function AddMealScreen() {
           style: "destructive",
           onPress: () => {
             setMealName("");
-            setQuantity("");
             setProtein("");
             setCarbs("");
             setFat("");
@@ -123,15 +120,6 @@ export default function AddMealScreen() {
         placeholderTextColor={colors.textMuted}
         value={mealName}
         onChangeText={setMealName}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="Quantity (total g/ml)"
-        placeholderTextColor={colors.textMuted}
-        keyboardType="numeric"
-        value={quantity}
-        onChangeText={setQuantity}
       />
 
       <Text style={styles.sectionTitle}>Core Nutrition</Text>
@@ -210,13 +198,17 @@ export default function AddMealScreen() {
           {loading ? "Saving..." : "Add Meal"}
         </Text>
       </TouchableOpacity>
+
+      <TouchableOpacity style={styles.clearButton} onPress={handleClearMeals}>
+        <Text style={styles.clearButtonText}>Clear Form</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   content: {
-    paddingBottom: 40,
+    paddingBottom: 120,
   },
 
   backButton: {

@@ -1,10 +1,5 @@
 const API_KEY = process.env.EXPO_PUBLIC_GROQ_API_KEY;
 
-console.log(
-  "GROQ API KEY:",
-  API_KEY ? API_KEY.substring(0, 8) + "..." : "NOT FOUND",
-);
-
 type TrackerData = {
   meals: number;
   calories: number;
@@ -17,6 +12,14 @@ type TrackerData = {
   water: number;
 };
 
+const ensureTerminalPunctuation = (text: string) => {
+  const cleaned = text.trim();
+
+  if (!cleaned) return cleaned;
+
+  return /[.!?]$/.test(cleaned) ? cleaned : `${cleaned}.`;
+};
+
 export async function getTrackerSummary(data: TrackerData) {
   try {
     if (!API_KEY) {
@@ -24,9 +27,9 @@ export async function getTrackerSummary(data: TrackerData) {
     }
 
     const prompt = `
-You are ChopperHub Assistant.
+You are Meal-lysis, a premium nutrition analysis feature inside ChopperHub.
 
-Analyze today's nutrition log and provide a short nutrition insight.
+Analyze today's nutrition log like a thoughtful nutrition coach reviewing a daily dashboard. Go beyond repeating the numbers: infer the pattern, explain what it may mean for energy, balance, satiety, hydration, and next-meal planning, then give one practical next action.
 
 Today's totals:
 
@@ -41,13 +44,15 @@ Sodium: ${data.sodium}mg
 Water: ${data.water}L
 
 Rules:
-- Start with a cordial welcome and mention user name and thank them to keep track.
-- Keep the response under 200 words.
+- Keep the response between 70 and 120 words.
 - Use only one paragraph.
-- Be supportive and practical.
-- Mention one positive observation.
-- Mention one improvement suggestion.
-- Mention hydration if water intake appears low.
+- Sound polished, premium, specific, and calm.
+- Do not simply restate the totals.
+- Mention the strongest pattern you can infer from the data.
+- Include one positive observation.
+- Include one precise improvement suggestion for the next meal or the rest of the day.
+- Mention hydration as it very useful from the water total entered.
+- End with a complete sentence and terminal punctuation.
 - Do not use bullet points.
 - Do not use headings.
 - Do not use medical advice.
@@ -69,31 +74,28 @@ Rules:
             {
               role: "system",
               content:
-                "You are ChopperHub Assistant. Summarize only the nutrition data provided. Do not give medical advice or recommendations.",
+                "You are Meal-lysis, a premium nutrition analyst for daily meal logs. Provide concise, data-grounded coaching from only the supplied totals. Avoid diagnosis, treatment claims, generic encouragement, and long disclaimers. Always end with terminal punctuation.",
             },
             {
               role: "user",
               content: prompt,
             },
           ],
-          temperature: 0.4,
-          max_completion_tokens: 150,
+          temperature: 0.55,
+          max_completion_tokens: 180,
         }),
       },
     );
 
     const json = await response.json();
 
-    console.log("GROQ STATUS:", response.status);
-    console.log("GROQ RESPONSE:", JSON.stringify(json, null, 2));
-
     if (!response.ok) {
-      return `Groq Error (${response.status})`;
+      return "Meal-lysis is unavailable right now. Your tracker data is still saved.";
     }
 
-    return (
+    return ensureTerminalPunctuation(
       json?.choices?.[0]?.message?.content ??
-      "No assistant summary was returned."
+        "No Meal-lysis summary was returned.",
     );
   } catch (error) {
     console.error("Error fetching from Groq:", error);

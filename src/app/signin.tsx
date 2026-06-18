@@ -21,6 +21,27 @@ WebBrowser.maybeCompleteAuthSession();
 
 const redirectUrl = AuthSession.makeRedirectUri();
 
+const createSessionFromUrl = async (url: string) => {
+  const [, hash = ""] = url.split("#");
+  const query = url.split("?")[1]?.split("#")[0] ?? "";
+  const params = new URLSearchParams(`${query}&${hash}`);
+  const errorDescription = params.get("error_description");
+  const accessToken = params.get("access_token");
+  const refreshToken = params.get("refresh_token");
+
+  if (errorDescription) throw new Error(errorDescription);
+  if (!accessToken || !refreshToken) return null;
+
+  const { data, error } = await supabase.auth.setSession({
+    access_token: accessToken,
+    refresh_token: refreshToken,
+  });
+
+  if (error) throw error;
+
+  return data.session;
+};
+
 export default function SignInScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -47,10 +68,7 @@ export default function SignInScreen() {
       }
 
       if (data.session) {
-        console.log("SIGNED IN USER:", data.user);
-        console.log("SIGNED IN SESSION:", data.session);
-
-        router.replace("/(tabs)/home");
+        router.replace("/");
       }
     } catch (error) {
       console.log(error);
@@ -65,6 +83,7 @@ export default function SignInScreen() {
         provider: "google",
         options: {
           redirectTo: redirectUrl,
+          skipBrowserRedirect: true,
         },
       });
 
@@ -73,15 +92,26 @@ export default function SignInScreen() {
         return;
       }
 
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      console.log("GET USER RESULT:", session?.user);
+      if (!data.url) {
+        Alert.alert("Google Sign In Failed", "Unable to start Google sign in.");
+        return;
+      }
+
+      const result = await WebBrowser.openAuthSessionAsync(
+        data.url,
+        redirectUrl,
+      );
+
+      if (result.type !== "success") return;
+
+      const session = await createSessionFromUrl(result.url);
+
       if (session) {
-        router.replace("/(tabs)/home");
+        router.replace("/");
       }
     } catch (error) {
       console.log(error);
+      Alert.alert("Google Sign In Failed", "Unable to complete Google sign in.");
     }
   };
 
@@ -132,9 +162,12 @@ export default function SignInScreen() {
                 cursorColor={colors.secondary}
               />
 
-              <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
+              <TouchableOpacity
+                style={styles.eyeButton}
+                onPress={() => setShowPassword(!showPassword)}
+              >
                 <Ionicons
-                  name={showPassword ? "eye-outline" : "eye-off-outline"}
+                  name={showPassword ? "eye-off-outline" : "eye-outline"}
                   size={22}
                   color="#B0B0B0"
                 />
@@ -153,7 +186,7 @@ export default function SignInScreen() {
             </TouchableOpacity>
 
             <TouchableOpacity onPress={() => router.push("/signup")}>
-              <Text style={styles.link}>Don't have an account? Sign Up</Text>
+              <Text style={styles.link}>{"Don't have an account? Sign Up"}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -232,7 +265,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.15)",
     borderRadius: 14,
-    paddingHorizontal: 12,
+    paddingLeft: 16,
     marginBottom: 14,
   },
 
@@ -241,6 +274,14 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     fontSize: 16,
     paddingVertical: 16,
+    paddingRight: 8,
+  },
+
+  eyeButton: {
+    height: 54,
+    width: 48,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   button: {

@@ -95,7 +95,11 @@ export default function UpdatePasswordScreen() {
   };
 
   return (
-    <ScrollView style={globalStyles.container}>
+    <ScrollView
+      style={globalStyles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
       {/* Back Button */}
       <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
         <Ionicons name="arrow-back" size={22} color={colors.text} />
@@ -118,10 +122,11 @@ export default function UpdatePasswordScreen() {
           onChangeText={setCurrentPassword}
         />
         <TouchableOpacity
+          style={styles.eyeButton}
           onPress={() => setShowCurrentPassword(!showCurrentPassword)}
         >
           <Ionicons
-            name={showCurrentPassword ? "eye-outline" : "eye-off-outline"}
+            name={showCurrentPassword ? "eye-off-outline" : "eye-outline"}
             size={22}
             color="#B0B0B0"
           />
@@ -137,9 +142,12 @@ export default function UpdatePasswordScreen() {
           value={newPassword}
           onChangeText={setNewPassword}
         />
-        <TouchableOpacity onPress={() => setShowNewPassword(!showNewPassword)}>
+        <TouchableOpacity
+          style={styles.eyeButton}
+          onPress={() => setShowNewPassword(!showNewPassword)}
+        >
           <Ionicons
-            name={showNewPassword ? "eye-outline" : "eye-off-outline"}
+            name={showNewPassword ? "eye-off-outline" : "eye-outline"}
             size={22}
             color="#B0B0B0"
           />
@@ -156,6 +164,7 @@ export default function UpdatePasswordScreen() {
           onChangeText={setConfirmPassword}
         />
         <TouchableOpacity
+          style={styles.eyeButton}
           onPress={() => setShowConfirmPassword(!showConfirmPassword)}
         >
           <Ionicons
@@ -180,6 +189,10 @@ export default function UpdatePasswordScreen() {
 }
 
 const styles = StyleSheet.create({
+  content: {
+    paddingBottom: 80,
+  },
+
   backButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -207,8 +220,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: 14,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingLeft: 16,
     marginBottom: 14,
   },
 
@@ -216,7 +228,15 @@ const styles = StyleSheet.create({
     flex: 1,
     color: colors.text,
     fontSize: 16,
-    paddingVertical: 0,
+    paddingVertical: 15,
+    paddingRight: 8,
+  },
+
+  eyeButton: {
+    height: 52,
+    width: 48,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   input: {

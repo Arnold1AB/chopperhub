@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { getProfileCompletion } from "@/lib/profileCompletion";
 import { colors, globalStyles } from "@/styles/global";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -15,9 +16,18 @@ import {
   View,
 } from "react-native";
 
+type SavedProfile = {
+  first_name?: string | null;
+  last_name?: string | null;
+  phone?: string | null;
+  profession?: string | null;
+  food_preference?: string | null;
+};
+
 export default function UpdateProfile() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savedProfile, setSavedProfile] = useState<SavedProfile | null>(null);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -41,7 +51,7 @@ export default function UpdateProfile() {
         .from("profiles")
         .select("*")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
 
@@ -50,6 +60,13 @@ export default function UpdateProfile() {
       setPhone(data?.phone ?? "");
       setProfession(data?.profession ?? "");
       setFoodPreference(data?.food_preference ?? "");
+      setSavedProfile({
+        first_name: data?.first_name ?? "",
+        last_name: data?.last_name ?? "",
+        phone: data?.phone ?? "",
+        profession: data?.profession ?? "",
+        food_preference: data?.food_preference ?? "",
+      });
     } catch (error) {
       console.log("LOAD PROFILE ERROR:", error);
     } finally {
@@ -71,20 +88,28 @@ export default function UpdateProfile() {
       }
 
       const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+      const profilePayload = {
+        id: user.id,
+        email: user.email,
+        first_name: firstName.trim(),
+        last_name: lastName.trim(),
+        full_name: fullName,
+        phone: phone.trim(),
+        profession: profession.trim(),
+        food_preference: foodPreference.trim(),
+      };
 
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          first_name: firstName.trim(),
-          last_name: lastName.trim(),
-          full_name: fullName,
-          phone: phone.trim(),
-          profession: profession.trim(),
-          food_preference: foodPreference.trim(),
-        })
-        .eq("id", user.id);
+      const { error } = await supabase.from("profiles").upsert(profilePayload);
 
       if (error) throw error;
+
+      setSavedProfile({
+        first_name: profilePayload.first_name,
+        last_name: profilePayload.last_name,
+        phone: profilePayload.phone,
+        profession: profilePayload.profession,
+        food_preference: profilePayload.food_preference,
+      });
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
@@ -105,6 +130,24 @@ export default function UpdateProfile() {
       setSaving(false);
     }
   };
+
+  const draftProfile = {
+    first_name: firstName,
+    last_name: lastName,
+    phone,
+    profession,
+    food_preference: foodPreference,
+  };
+
+  const completion = getProfileCompletion(savedProfile);
+  const draftCompletion = getProfileCompletion(draftProfile);
+  const hasUnsavedChanges =
+    (savedProfile?.first_name ?? "") !== firstName.trim() ||
+    (savedProfile?.last_name ?? "") !== lastName.trim() ||
+    (savedProfile?.phone ?? "") !== phone.trim() ||
+    (savedProfile?.profession ?? "") !== profession.trim() ||
+    (savedProfile?.food_preference ?? "") !== foodPreference.trim();
+  const statusComplete = completion.complete && !hasUnsavedChanges;
 
   if (loading) {
     return (
@@ -136,6 +179,68 @@ export default function UpdateProfile() {
       <Text style={styles.subtitle}>
         Keep your ChopperHub profile information up to date.
       </Text>
+
+      <View
+        style={[
+          styles.completionCard,
+          statusComplete && styles.completionCardComplete,
+          hasUnsavedChanges && styles.completionCardDraft,
+        ]}
+      >
+        <View style={styles.completionHeader}>
+          <View>
+            <Text style={styles.completionLabel}>Profile Completion</Text>
+            <Text style={styles.completionTitle}>
+              {hasUnsavedChanges
+                ? "Unsaved profile changes"
+                : statusComplete
+                  ? "Profile completed 100%"
+                  : `${completion.percentage}% completed`}
+            </Text>
+          </View>
+
+          <View
+            style={[
+              styles.completionBadge,
+              statusComplete && styles.completionBadgeComplete,
+              hasUnsavedChanges && styles.completionBadgeDraft,
+            ]}
+          >
+            <Text style={styles.completionBadgeText}>
+              {hasUnsavedChanges
+                ? `${draftCompletion.percentage}%`
+                : `${completion.percentage}%`}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.progressTrack}>
+          <View
+            style={[
+              styles.progressFill,
+              {
+                width: `${
+                  hasUnsavedChanges
+                    ? draftCompletion.percentage
+                    : completion.percentage
+                }%`,
+              },
+              statusComplete && styles.progressFillComplete,
+              hasUnsavedChanges && styles.progressFillDraft,
+            ]}
+          />
+        </View>
+
+        <Text style={styles.completionBody}>
+          {hasUnsavedChanges
+            ? "Save your changes to update your official profile completion."
+            : statusComplete
+              ? "Everything looks complete. You can update these details anytime."
+              : `Add ${completion.missing
+                  .map((field) => field.label.toLowerCase())
+                  .join(", ")} to finish your profile.`}
+        </Text>
+      </View>
 
       <Text style={styles.label}>First Name</Text>
       <TextInput
@@ -198,7 +303,7 @@ export default function UpdateProfile() {
 
 const styles = StyleSheet.create({
   content: {
-    paddingBottom: 50,
+    paddingBottom: 80,
   },
 
   backButton: {
@@ -228,6 +333,93 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: 8,
     marginTop: 6,
+  },
+
+  completionCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "rgba(53,167,255,0.45)",
+    marginBottom: 24,
+  },
+
+  completionCardComplete: {
+    borderColor: "rgba(34,197,94,0.55)",
+  },
+
+  completionCardDraft: {
+    borderColor: "rgba(250,204,21,0.55)",
+  },
+
+  completionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+
+  completionLabel: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+  },
+
+  completionTitle: {
+    color: colors.primary,
+    fontSize: 18,
+    fontWeight: "800",
+    marginTop: 4,
+  },
+
+  completionBadge: {
+    backgroundColor: colors.secondary,
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+
+  completionBadgeComplete: {
+    backgroundColor: colors.success,
+  },
+
+  completionBadgeDraft: {
+    backgroundColor: colors.accent,
+  },
+
+  completionBadgeText: {
+    color: "#0F172A",
+    fontWeight: "900",
+  },
+
+  progressTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceElevated,
+    overflow: "hidden",
+    marginTop: 16,
+  },
+
+  progressFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: colors.secondary,
+  },
+
+  progressFillComplete: {
+    backgroundColor: colors.success,
+  },
+
+  progressFillDraft: {
+    backgroundColor: colors.accent,
+  },
+
+  completionBody: {
+    color: colors.textMuted,
+    fontSize: 13,
+    lineHeight: 19,
+    marginTop: 12,
   },
 
   input: {

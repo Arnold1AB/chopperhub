@@ -1,5 +1,7 @@
 import { supabase } from "@/lib/supabase";
+import { getProfileCompletion } from "@/lib/profileCompletion";
 import { colors, globalStyles } from "@/styles/global";
+import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import {
@@ -25,7 +27,7 @@ type Profile = {
 export default function ProfileScreen() {
   const [profile, setProfile] = useState<Profile | null>(null);
 
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
     try {
       const {
         data: { user },
@@ -37,10 +39,11 @@ export default function ProfileScreen() {
         .from("profiles")
         .select("*")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.log("PROFILE ERROR:", error);
+        setProfile(null);
         return;
       }
 
@@ -48,12 +51,12 @@ export default function ProfileScreen() {
     } catch (error) {
       console.log(error);
     }
-  };
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       loadProfile();
-    }, []),
+    }, [loadProfile]),
   );
 
   const hour = new Date().getHours();
@@ -73,8 +76,7 @@ export default function ProfileScreen() {
     `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim(),
   );
 
-  const profileIncomplete =
-    !profile?.first_name || !profile?.last_name || !profile?.phone;
+  const completion = getProfileCompletion(profile);
 
   const handleShareProgress = async () => {
     try {
@@ -193,7 +195,11 @@ Build better habits.
   };
 
   return (
-    <ScrollView style={globalStyles.container}>
+    <ScrollView
+      style={globalStyles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
       <Text style={globalStyles.title}>Profile</Text>
 
       <View style={styles.profileCard}>
@@ -202,19 +208,80 @@ Build better habits.
         <Text style={styles.name}>{fullName || "ChopperHub User"}</Text>
       </View>
 
-      {profileIncomplete && (
-        <TouchableOpacity
-          style={styles.warningCard}
-          onPress={() => router.push("/update-profile")}
-        >
-          <Text style={styles.warningTitle}>Complete Your Profile</Text>
+      <TouchableOpacity
+        style={[
+          styles.completionCard,
+          completion.complete && styles.completionCardComplete,
+        ]}
+        activeOpacity={0.88}
+        onPress={() => router.push("/update-profile")}
+      >
+        <View style={styles.completionHeader}>
+          <View
+            style={[
+              styles.completionIcon,
+              completion.complete && styles.completionIconComplete,
+            ]}
+          >
+            <Ionicons
+              name={completion.complete ? "checkmark" : "person-add"}
+              size={20}
+              color="#0F172A"
+            />
+          </View>
 
-          <Text style={styles.warningText}>
-            Some information is still missing. Update your profile to unlock the
-            full ChopperHub experience.
+          <View style={styles.completionCopy}>
+            <Text style={styles.completionEyebrow}>Profile Completion</Text>
+            <Text style={styles.completionTitle}>
+              {completion.complete
+                ? "Profile Complete"
+                : "Complete Your Profile"}
+            </Text>
+          </View>
+
+          <Text
+            style={[
+              styles.completionPercent,
+              completion.complete && styles.completionPercentComplete,
+            ]}
+          >
+            {completion.percentage}%
           </Text>
-        </TouchableOpacity>
-      )}
+        </View>
+
+        <View style={styles.progressTrack}>
+          <View
+            style={[
+              styles.progressFill,
+              { width: `${completion.percentage}%` },
+              completion.complete && styles.progressFillComplete,
+            ]}
+          />
+        </View>
+
+        <View style={styles.completionFooter}>
+          <Text style={styles.completionBody}>
+            {completion.complete
+              ? "Everything looks complete. You can update your details anytime."
+              : `Missing: ${completion.missing
+                  .slice(0, 3)
+                  .map((field) => field.label)
+                  .join(", ")}`}
+          </Text>
+
+          <View
+            style={[
+              styles.completionButton,
+              completion.complete && styles.completionButtonComplete,
+            ]}
+          >
+            <Text style={styles.completionButtonText}>
+              {completion.complete ? "Edit" : "Complete"}
+            </Text>
+            <Ionicons name="arrow-forward" size={14} color="#0F172A" />
+          </View>
+        </View>
+      </TouchableOpacity>
 
       <View style={styles.menuContainer}>
         <MenuItem
@@ -283,6 +350,9 @@ function MenuItem({ title, subtitle, onPress, danger }: MenuItemProps) {
 }
 
 const styles = StyleSheet.create({
+  content: {
+    paddingBottom: 120,
+  },
   profileCard: {
     backgroundColor: colors.surface,
     borderRadius: 24,
@@ -307,30 +377,122 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
   },
 
-  warningCard: {
-    backgroundColor: "#2D2410",
+  completionCard: {
+    backgroundColor: colors.surface,
     borderRadius: 20,
-    padding: 20,
+    padding: 18,
     marginTop: 18,
     borderWidth: 1,
-    borderColor: "#FACC15",
+    borderColor: "rgba(53,167,255,0.45)",
   },
 
-  warningTitle: {
-    color: "#FACC15",
-    fontSize: 16,
-    fontWeight: "700",
+  completionCardComplete: {
+    borderColor: "rgba(34,197,94,0.55)",
   },
 
-  warningText: {
-    color: "#E5E7EB",
-    marginTop: 8,
-    lineHeight: 22,
+  completionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+
+  completionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.accent,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+
+  completionIconComplete: {
+    backgroundColor: colors.success,
+  },
+
+  completionCopy: {
+    flex: 1,
+  },
+
+  completionEyebrow: {
+    color: colors.textMuted,
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+
+  completionTitle: {
+    color: colors.primary,
+    fontSize: 18,
+    fontWeight: "800",
+    marginTop: 3,
+  },
+
+  completionPercent: {
+    color: colors.accent,
+    fontSize: 22,
+    fontWeight: "900",
+    marginLeft: 10,
+  },
+
+  completionPercentComplete: {
+    color: colors.success,
+  },
+
+  progressTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: colors.surfaceElevated,
+    overflow: "hidden",
+    marginTop: 16,
+  },
+
+  progressFill: {
+    height: "100%",
+    borderRadius: 999,
+    backgroundColor: colors.secondary,
+  },
+
+  progressFillComplete: {
+    backgroundColor: colors.success,
+  },
+
+  completionFooter: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+    marginTop: 14,
+  },
+
+  completionBody: {
+    color: colors.textMuted,
+    flex: 1,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+
+  completionButton: {
+    backgroundColor: colors.accent,
+    borderRadius: 999,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+
+  completionButtonComplete: {
+    backgroundColor: colors.success,
+  },
+
+  completionButtonText: {
+    color: "#0F172A",
+    fontSize: 12,
+    fontWeight: "900",
   },
 
   menuContainer: {
     marginTop: 20,
-    marginBottom: 40,
   },
 
   menuCard: {

@@ -27,6 +27,8 @@ export default function RecentMeals({ meals, onDelete }: RecentMealsProps) {
             carbs={Number(meal.carbs || 0)}
             fat={Number(meal.fat || 0)}
             fibre={Number(meal.fibre || 0)}
+            sugar={Number(meal.sugar || 0)}
+            sodium={Number(meal.sodium || 0)}
             water={Number(meal.water || 0)}
             onDelete={onDelete}
           />

@@ -12,6 +12,8 @@ type MealItemProps = {
   fat: number;
 
   fibre?: number;
+  sugar?: number;
+  sodium?: number;
   water?: number;
 
   onDelete: () => void;
@@ -24,11 +26,18 @@ export default function MealItem({
   carbs,
   fat,
   fibre = 0,
+  sugar = 0,
+  sodium = 0,
   water = 0,
   onDelete,
 }: MealItemProps) {
-  // ✅ compute locally (single source of truth)
   const calories = protein * 4 + carbs * 4 + fat * 9;
+  const extras = [
+    fibre > 0 ? `${fibre}g fibre` : "",
+    sugar > 0 ? `${sugar}g sugar` : "",
+    sodium > 0 ? `${sodium}mg sodium` : "",
+    water > 0 ? `${water}L water` : "",
+  ].filter(Boolean);
 
   const handleLongPress = () => {
     Alert.alert("Delete Meal", `Are you sure you want to delete "${name}"?`, [
@@ -63,16 +72,11 @@ export default function MealItem({
       <Text style={styles.name}>{name}</Text>
 
       <Text style={styles.macros}>
-        {Math.round(calories)} cal • {protein}g P • {carbs}g C • {fat}g F
+        {Math.round(calories)} cal | {protein}g P | {carbs}g C | {fat}g F
       </Text>
 
-      {/* Optional extra nutrients */}
-      {(fibre > 0 || water > 0) && (
-        <Text style={styles.extra}>
-          {fibre > 0 ? `${fibre}g fibre` : ""}
-          {fibre > 0 && water > 0 ? " • " : ""}
-          {water > 0 ? `${water}ml water` : ""}
-        </Text>
+      {extras.length > 0 && (
+        <Text style={styles.extra}>{extras.join(" | ")}</Text>
       )}
     </TouchableOpacity>
   );

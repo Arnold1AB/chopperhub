@@ -1,16 +1,29 @@
 import { supabase } from "@/lib/supabase";
 import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
-import { Text, View } from "react-native";
+import { ActivityIndicator, View } from "react-native";
+
+SplashScreen.preventAutoHideAsync().catch(() => {
+  // The native splash may already be hidden during fast refresh.
+});
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // Wait for Supabase to restore session from AsyncStorage
-    supabase.auth.getSession().then(() => {
-      setReady(true);
-    });
+    const prepare = async () => {
+      try {
+        await supabase.auth.getSession();
+      } catch (error) {
+        console.log("SESSION RESTORE ERROR:", error);
+      } finally {
+        setReady(true);
+        await SplashScreen.hideAsync().catch(() => {});
+      }
+    };
+
+    prepare();
 
     const { data: listener } = supabase.auth.onAuthStateChange(() => {
       setReady(true);
@@ -21,20 +34,20 @@ export default function RootLayout() {
 
   if (!ready) {
     return (
-      <View style={{ flex: 1, backgroundColor: "#0F172A" }}>
-        <Text> </Text>
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "#0F172A",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <ActivityIndicator color="#35A7FF" />
       </View>
     );
   }
 
   return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="update-profile" />
-      <Stack.Screen name="update-password" />
-      <Stack.Screen name="notifications" />
-      <Stack.Screen name="signin" />
-      <Stack.Screen name="signup" />
-    </Stack>
+    <Stack screenOptions={{ headerShown: false }} />
   );
 }

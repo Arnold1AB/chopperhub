@@ -2,7 +2,7 @@ import { getMeals } from "@/lib/meals";
 import { colors, globalStyles } from "@/styles/global";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -20,7 +20,6 @@ export default function ShareProgressScreen() {
   const [totals, setTotals] = useState({
     meals: 0,
     calories: 0,
-    quantity: 0,
     protein: 0,
     carbs: 0,
     fat: 0,
@@ -30,11 +29,7 @@ export default function ShareProgressScreen() {
     water: 0,
   });
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const meals = await getMeals();
 
@@ -48,7 +43,6 @@ export default function ShareProgressScreen() {
           return {
             meals: acc.meals + 1,
             calories: acc.calories + calories,
-            quantity: acc.quantity + Number(meal.quantity || 0),
             protein: acc.protein + protein,
             carbs: acc.carbs + carbs,
             fat: acc.fat + fat,
@@ -61,7 +55,6 @@ export default function ShareProgressScreen() {
         {
           meals: 0,
           calories: 0,
-          quantity: 0,
           protein: 0,
           carbs: 0,
           fat: 0,
@@ -74,11 +67,15 @@ export default function ShareProgressScreen() {
 
       setTotals(calculated);
     } catch (error) {
-      console.log(error);
+      console.log("SHARE PROGRESS ERROR:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const shareProgress = async () => {
     try {
@@ -102,13 +99,17 @@ Tracked with ChopperHub
       `;
 
       await Share.share({ message });
-    } catch (error) {
+    } catch {
       Alert.alert("Unable to Share", "Something went wrong.");
     }
   };
 
   return (
-    <ScrollView style={globalStyles.container}>
+    <ScrollView
+      style={globalStyles.container}
+      contentContainerStyle={styles.content}
+      showsVerticalScrollIndicator={false}
+    >
       {/* Back Button */}
       <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
         <Ionicons name="arrow-back" size={22} color={colors.text} />
@@ -149,6 +150,10 @@ Tracked with ChopperHub
 }
 
 const styles = StyleSheet.create({
+  content: {
+    paddingBottom: 80,
+  },
+
   backButton: {
     flexDirection: "row",
     alignItems: "center",

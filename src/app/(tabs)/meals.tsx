@@ -11,7 +11,7 @@ type GroupedMeals = {
 export default function MealsScreen() {
   const [groupedMeals, setGroupedMeals] = useState<GroupedMeals>({});
 
-  const groupMealsByDate = (meals: Meal[]) => {
+  const groupMealsByDate = useCallback((meals: Meal[]) => {
     const grouped: GroupedMeals = {};
 
     meals.forEach((meal) => {
@@ -33,24 +33,30 @@ export default function MealsScreen() {
     });
 
     return grouped;
-  };
+  }, []);
 
-  const loadMeals = async () => {
+  const loadMeals = useCallback(async () => {
     try {
       const meals = await getMeals();
+
+      if (!meals || meals.length === 0) {
+        setGroupedMeals({});
+        return;
+      }
 
       const grouped = groupMealsByDate(meals);
 
       setGroupedMeals(grouped);
     } catch (error) {
       console.log("MEALS ERROR:", error);
+      setGroupedMeals({});
     }
-  };
+  }, [groupMealsByDate]);
 
   useFocusEffect(
     useCallback(() => {
       loadMeals();
-    }, []),
+    }, [loadMeals]),
   );
 
   const dates = Object.keys(groupedMeals);
@@ -113,7 +119,7 @@ export default function MealsScreen() {
 
 const styles = StyleSheet.create({
   content: {
-    paddingBottom: 40,
+    paddingBottom: 120,
   },
 
   subtitle: {

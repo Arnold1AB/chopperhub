@@ -1,8 +1,27 @@
 import { colors } from "@/styles/global";
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
+import { getSubscriptionAccess } from "@/lib/subscription";
+import { router, Tabs } from "expo-router";
+import { useEffect } from "react";
 
 export default function TabsLayout() {
+  useEffect(() => {
+    const checkAccess = async () => {
+      try {
+        const access = await getSubscriptionAccess();
+
+        if (!access.hasAccess) {
+          router.replace("/subscribe" as never);
+        }
+      } catch (error) {
+        console.log("TAB ACCESS ERROR:", error);
+        router.replace("/signin");
+      }
+    };
+
+    checkAccess();
+  }, []);
+
   return (
     <Tabs
       initialRouteName="home"

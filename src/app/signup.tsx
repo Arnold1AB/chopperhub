@@ -114,6 +114,8 @@ export default function SignUpScreen() {
         phone,
         profession,
         food_preference: foodPreference,
+        trial_started_at: new Date().toISOString(),
+        subscription_status: "trialing",
       });
 
       if (profileError) {

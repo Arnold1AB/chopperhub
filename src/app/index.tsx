@@ -1,11 +1,14 @@
 import { supabase } from "@/lib/supabase";
+import { getSubscriptionAccess } from "@/lib/subscription";
 import { Redirect } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
 export default function Index() {
   const [loading, setLoading] = useState(true);
-  const [authenticated, setAuthenticated] = useState(false);
+  const [targetRoute, setTargetRoute] = useState<"/(tabs)/home" | "/signin" | "/subscribe">(
+    "/signin",
+  );
 
   useEffect(() => {
     const checkSession = async () => {
@@ -14,10 +17,16 @@ export default function Index() {
           data: { session },
         } = await supabase.auth.getSession();
 
-        setAuthenticated(!!session);
+        if (!session) {
+          setTargetRoute("/signin");
+          return;
+        }
+
+        const access = await getSubscriptionAccess();
+        setTargetRoute(access.hasAccess ? "/(tabs)/home" : "/subscribe");
       } catch (error) {
         console.log("AUTH GATE ERROR:", error);
-        setAuthenticated(false);
+        setTargetRoute("/signin");
       } finally {
         setLoading(false);
       }
@@ -35,11 +44,7 @@ export default function Index() {
     );
   }
 
-  return authenticated ? (
-    <Redirect href="/(tabs)/home" />
-  ) : (
-    <Redirect href="/signin" />
-  );
+  return <Redirect href={targetRoute as never} />;
 }
 
 const styles = StyleSheet.create({

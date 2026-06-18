@@ -8,6 +8,7 @@ node_modules/
 dist/
 web-build/
 expo-env.d.ts
+*.apk
 
 # Native
 .kotlin/
@@ -45,3 +46,4 @@ app-example
 # git -version control
 .env
 .env.local
+supabase/.temp/

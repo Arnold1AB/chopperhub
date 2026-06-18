@@ -1,12 +1,61 @@
 import { supabase } from "@/lib/supabase";
-import { Stack } from "expo-router";
+import Constants from "expo-constants";
+import { Stack, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
+import { PostHogProvider, usePostHog } from "posthog-react-native";
 
 SplashScreen.preventAutoHideAsync().catch(() => {
   // The native splash may already be hidden during fast refresh.
 });
+
+const extra = Constants.expoConfig?.extra as
+  | Record<string, string | undefined>
+  | undefined;
+
+const posthogKey =
+  process.env.EXPO_PUBLIC_POSTHOG_KEY ?? extra?.EXPO_PUBLIC_POSTHOG_KEY;
+const posthogHost =
+  process.env.EXPO_PUBLIC_POSTHOG_HOST ??
+  extra?.EXPO_PUBLIC_POSTHOG_HOST ??
+  "https://us.i.posthog.com";
+
+function AppStack() {
+  return <Stack screenOptions={{ headerShown: false }} />;
+}
+
+function AnalyticsTracker() {
+  const pathname = usePathname();
+  const posthog = usePostHog();
+  const previousPathname = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (previousPathname.current === pathname) return;
+
+    previousPathname.current = pathname;
+    posthog.screen(pathname);
+  }, [pathname, posthog]);
+
+  useEffect(() => {
+    posthog.capture("app opened");
+
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        if (session?.user) {
+          posthog.identify(session.user.id);
+          return;
+        }
+
+        posthog.reset();
+      },
+    );
+
+    return () => listener.subscription.unsubscribe();
+  }, [posthog]);
+
+  return null;
+}
 
 export default function RootLayout() {
   const [ready, setReady] = useState(false);
@@ -47,7 +96,24 @@ export default function RootLayout() {
     );
   }
 
+  if (!posthogKey) {
+    return <AppStack />;
+  }
+
   return (
-    <Stack screenOptions={{ headerShown: false }} />
+    <PostHogProvider
+      apiKey={posthogKey}
+      options={{
+        host: posthogHost,
+        captureAppLifecycleEvents: true,
+      }}
+      autocapture={{
+        captureScreens: false,
+        captureTouches: true,
+      }}
+    >
+      <AnalyticsTracker />
+      <AppStack />
+    </PostHogProvider>
   );
 }

@@ -107,7 +107,7 @@ export default function SubscriptionsScreen() {
         <Text style={styles.trialMuted}>no charge until it ends</Text>
       </View>
 
-      {paymentError && (
+      {paymentError.length > 0 && (
         <View style={styles.errorBox}>
           <Ionicons name="alert-circle" size={18} color={colors.accent} />
           <Text style={styles.errorText}>{paymentError}</Text>
@@ -115,7 +115,6 @@ export default function SubscriptionsScreen() {
       )}
 
       <PlanCard
-        plan="monthly"
         title="Monthly"
         subtitle="Billed monthly, cancel anytime"
         price="$3"
@@ -128,7 +127,6 @@ export default function SubscriptionsScreen() {
       />
 
       <PlanCard
-        plan="yearly"
         title="Yearly"
         subtitle="Just $2.50 / month"
         price="$30"
@@ -149,7 +147,6 @@ export default function SubscriptionsScreen() {
 }
 
 type PlanCardProps = {
-  plan: SubscriptionPlan;
   title: string;
   subtitle: string;
   price: string;

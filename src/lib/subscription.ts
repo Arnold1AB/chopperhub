@@ -47,6 +47,18 @@ const addDays = (date: Date, days: number) => {
 const daysUntil = (date: Date) =>
   Math.max(0, Math.ceil((date.getTime() - Date.now()) / 86400000));
 
+const createTrialAccess = (startedAt: Date): SubscriptionAccess => {
+  const trialEndsAt = addDays(startedAt, TRIAL_DAYS);
+
+  return {
+    hasAccess: true,
+    status: "trialing",
+    trialEndsAt,
+    subscriptionExpiresAt: null,
+    daysRemaining: daysUntil(trialEndsAt),
+  };
+};
+
 export const getSubscriptionAccess = async (): Promise<SubscriptionAccess> => {
   const {
     data: { user },
@@ -62,13 +74,15 @@ export const getSubscriptionAccess = async (): Promise<SubscriptionAccess> => {
     .eq("id", user.id)
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) {
+    console.warn("Subscription fields unavailable; allowing trial access.", error);
+    return createTrialAccess(new Date(user.created_at ?? Date.now()));
+  }
 
   const now = new Date();
   const trialStartedAt = new Date(
     profile?.trial_started_at ?? profile?.created_at ?? user.created_at ?? now,
   );
-  const trialEndsAt = addDays(trialStartedAt, TRIAL_DAYS);
   const subscriptionExpiresAt = profile?.subscription_expires_at
     ? new Date(profile.subscription_expires_at)
     : null;
@@ -76,6 +90,7 @@ export const getSubscriptionAccess = async (): Promise<SubscriptionAccess> => {
     profile?.subscription_status === "active" &&
     !!subscriptionExpiresAt &&
     subscriptionExpiresAt > now;
+  const trialEndsAt = addDays(trialStartedAt, TRIAL_DAYS);
   const trialAccess = trialEndsAt > now;
   const accessEndsAt = paidAccess ? subscriptionExpiresAt : trialEndsAt;
 

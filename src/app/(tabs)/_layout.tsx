@@ -15,7 +15,6 @@ export default function TabsLayout() {
         }
       } catch (error) {
         console.log("TAB ACCESS ERROR:", error);
-        router.replace("/signin");
       }
     };
 

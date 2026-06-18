@@ -26,7 +26,10 @@ export default function Index() {
         setTargetRoute(access.hasAccess ? "/(tabs)/home" : "/subscribe");
       } catch (error) {
         console.log("AUTH GATE ERROR:", error);
-        setTargetRoute("/signin");
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        setTargetRoute(session ? "/(tabs)/home" : "/signin");
       } finally {
         setLoading(false);
       }

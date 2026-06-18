@@ -117,7 +117,7 @@ export default function SubscriptionsScreen() {
       <PlanCard
         title="Monthly"
         subtitle="Billed monthly, cancel anytime"
-        price="$3"
+        price="₦4,500"
         suffix="/ mo"
         features={monthlyFeatures}
         buttonLabel="Start Monthly"
@@ -128,8 +128,8 @@ export default function SubscriptionsScreen() {
 
       <PlanCard
         title="Yearly"
-        subtitle="Just $2.50 / month"
-        price="$30"
+        subtitle="Just ₦3,750 / month"
+        price="₦45,000"
         suffix="/ yr"
         features={yearlyFeatures}
         buttonLabel="Get Yearly - Best Value"

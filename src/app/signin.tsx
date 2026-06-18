@@ -19,7 +19,10 @@ import { supabase } from "../lib/supabase";
 
 WebBrowser.maybeCompleteAuthSession();
 
-const redirectUrl = AuthSession.makeRedirectUri();
+const redirectUrl = AuthSession.makeRedirectUri({
+  scheme: "chopperhub",
+  path: "auth-callback",
+});
 
 const createSessionFromUrl = async (url: string) => {
   const [, hash = ""] = url.split("#");

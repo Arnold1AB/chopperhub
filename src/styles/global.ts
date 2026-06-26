@@ -24,6 +24,50 @@ export const colors = {
 
   success: "#22C55E",
   danger: "#EF4444",
+
+  warning: "#F59E0B",
+  overlay: "rgba(15, 23, 42, 0.72)",
+};
+
+export const spacing = {
+  xs: 4,
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 20,
+  "2xl": 24,
+  "3xl": 32,
+};
+
+export const radii = {
+  sm: 8,
+  md: 12,
+  lg: 16,
+  xl: 18,
+  pill: 999,
+};
+
+export const typography = {
+  screenTitle: {
+    fontSize: 32,
+    fontWeight: "800" as const,
+    color: colors.primary,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "800" as const,
+    color: colors.primary,
+  },
+  body: {
+    fontSize: 15,
+    lineHeight: 22,
+    color: colors.text,
+  },
+  muted: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.textMuted,
+  },
 };
 
 export const globalStyles = StyleSheet.create({

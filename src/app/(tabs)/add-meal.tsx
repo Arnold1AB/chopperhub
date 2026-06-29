@@ -7,6 +7,7 @@ import {
   SectionHeader,
   SegmentedControl,
 } from "@/components/ui";
+import { analyzeMealDraft, MealDraft } from "@/lib/mealDraft";
 import { addMeal } from "@/lib/meals";
 import { colors, radii, spacing, typography } from "@/styles/global";
 import { Ionicons } from "@expo/vector-icons";
@@ -54,6 +55,8 @@ export default function AddMealScreen() {
   const [portion, setPortion] = useState<Portion>("regular");
   const [customPortion, setCustomPortion] = useState("");
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [mealDraft, setMealDraft] = useState<MealDraft | null>(null);
+  const [draftLoading, setDraftLoading] = useState(false);
 
   const [protein, setProtein] = useState("");
   const [carbs, setCarbs] = useState("");
@@ -94,12 +97,67 @@ export default function AddMealScreen() {
     setPortion("regular");
     setCustomPortion("");
     setAdvancedOpen(false);
+    setMealDraft(null);
     setProtein("");
     setCarbs("");
     setFat("");
     setFibre("");
     setSugar("");
     setSodium("");
+  };
+
+  const applyMealDraft = (draft: MealDraft) => {
+    setMealDraft(draft);
+
+    if (draft.name.trim()) {
+      setMealDescription(draft.name.trim());
+    }
+
+    if (draft.mealType !== "unknown") {
+      setMealType(draft.mealType);
+    }
+
+    if (draft.portion !== "unknown") {
+      setPortion(draft.portion);
+    }
+
+    setProtein(String(Math.round(draft.protein || 0)));
+    setCarbs(String(Math.round(draft.carbs || 0)));
+    setFat(String(Math.round(draft.fat || 0)));
+    setFibre(String(Math.round(draft.fibre || 0)));
+    setSugar(String(Math.round(draft.sugar || 0)));
+    setSodium(String(Math.round(draft.sodium || 0)));
+  };
+
+  const handleAnalyzeMeal = async () => {
+    try {
+      if (!mealDescription.trim()) {
+        Alert.alert("Missing Meal", "Describe what you ate before analysis.");
+        return;
+      }
+
+      setDraftLoading(true);
+
+      const draft = await analyzeMealDraft({
+        description: mealDescription.trim(),
+        mealType,
+        portion,
+      });
+
+      applyMealDraft(draft);
+      setAdvancedOpen(false);
+
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (error: any) {
+      console.error(error);
+      Alert.alert(
+        "Analysis Unavailable",
+        error?.message ||
+          "You can still save this meal manually and analyze it later.",
+      );
+    } finally {
+      setDraftLoading(false);
+    }
   };
 
   const handleAddMeal = async () => {
@@ -207,6 +265,14 @@ export default function AddMealScreen() {
           onChangeText={setMealDescription}
           textAlignVertical="top"
         />
+
+        <AppButton
+          title="Analyze meal"
+          icon="sparkles"
+          onPress={handleAnalyzeMeal}
+          loading={draftLoading}
+          disabled={logMode !== "type"}
+        />
       </Card>
 
       <View style={styles.sectionBlock}>
@@ -256,7 +322,8 @@ export default function AddMealScreen() {
           <View style={styles.estimateCopy}>
             <Text style={styles.estimateTitle}>AI estimate preview</Text>
             <BodyText muted>
-              Full AI meal parsing comes next. For now, macro estimates update from optional nutrition details.
+              Analyze a typed meal to draft ingredients, nutrition estimates,
+              and follow-up questions before saving.
             </BodyText>
           </View>
         </View>
@@ -271,10 +338,58 @@ export default function AddMealScreen() {
           <View style={styles.estimateRow}>
             <Text style={styles.estimateLabel}>Calories</Text>
             <Text style={styles.estimateValue}>
-              {estimatedCalories ? `${estimatedCalories} kcal` : "Add macros to estimate"}
+              {mealDraft?.caloriesEstimateMin && mealDraft?.caloriesEstimateMax
+                ? `${mealDraft.caloriesEstimateMin}-${mealDraft.caloriesEstimateMax} kcal`
+                : estimatedCalories
+                  ? `${estimatedCalories} kcal`
+                  : "Analyze meal or add macros"}
             </Text>
           </View>
         </View>
+
+        {mealDraft && (
+          <View style={styles.draftDetails}>
+            <View style={styles.draftMetaRow}>
+              <Text style={styles.confidenceBadge}>
+                {mealDraft.confidence} confidence
+              </Text>
+              <Text style={styles.draftMetaText}>
+                {mealDraft.ingredients.length} ingredients found
+              </Text>
+            </View>
+
+            {mealDraft.ingredients.length > 0 && (
+              <View style={styles.draftSection}>
+                <Text style={styles.estimateLabel}>Ingredients</Text>
+                <View style={styles.chipWrap}>
+                  {mealDraft.ingredients.map((ingredient) => (
+                    <Chip
+                      key={ingredient}
+                      label={ingredient}
+                      selected
+                      onPress={() => undefined}
+                    />
+                  ))}
+                </View>
+              </View>
+            )}
+
+            {mealDraft.followUpQuestions.length > 0 && (
+              <View style={styles.draftSection}>
+                <Text style={styles.estimateLabel}>Follow-up questions</Text>
+                {mealDraft.followUpQuestions.slice(0, 3).map((question) => (
+                  <Text key={question} style={styles.questionText}>
+                    {question}
+                  </Text>
+                ))}
+              </View>
+            )}
+
+            {mealDraft.warnings.length > 0 && (
+              <BodyText muted>{mealDraft.warnings[0]}</BodyText>
+            )}
+          </View>
+        )}
       </Card>
 
       <Card style={styles.advancedCard}>
@@ -467,6 +582,44 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     lineHeight: 22,
+  },
+  draftDetails: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: spacing.lg,
+    gap: spacing.lg,
+  },
+  draftMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: spacing.sm,
+  },
+  confidenceBadge: {
+    alignSelf: "flex-start",
+    backgroundColor: "rgba(34, 197, 94, 0.16)",
+    borderColor: "rgba(34, 197, 94, 0.32)",
+    borderRadius: radii.pill,
+    borderWidth: 1,
+    color: colors.success,
+    fontSize: 12,
+    fontWeight: "800",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    textTransform: "capitalize",
+  },
+  draftMetaText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  draftSection: {
+    gap: spacing.sm,
+  },
+  questionText: {
+    color: colors.text,
+    fontSize: 14,
+    lineHeight: 21,
   },
   advancedCard: {
     gap: spacing.lg,

@@ -6,6 +6,7 @@ import * as WebBrowser from "expo-web-browser";
 import { useState } from "react";
 import {
   Alert,
+  Image,
   ImageBackground,
   ScrollView,
   StyleSheet,
@@ -178,13 +179,18 @@ export default function SignUpScreen() {
 
   return (
     <ImageBackground
-      source={require("../../assets/images/chopperhub-logo.png")}
+      source={require("../../assets/images/auth-bg.jpg")}
       style={styles.background}
-      resizeMode="contain"
+      resizeMode="cover"
     >
       <View style={styles.overlay} />
 
       <ScrollView contentContainerStyle={styles.container}>
+        <Image
+          source={require("../../assets/images/chopperhub-logo.png")}
+          style={styles.logoImage}
+        />
+
         <Text style={styles.title}>Create Account</Text>
 
         <TextInput
@@ -278,6 +284,13 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: "center",
     padding: 20,
+  },
+  logoImage: {
+    width: 120,
+    height: 120,
+    alignSelf: "center",
+    resizeMode: "contain",
+    marginBottom: 12,
   },
   title: {
     fontSize: 28,

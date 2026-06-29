@@ -120,9 +120,9 @@ export default function SignInScreen() {
 
   return (
     <ImageBackground
-      source={require("../../assets/images/auth-bg.jpg")}
+      source={require("../../assets/images/chopperhub-logo.png")}
       style={styles.background}
-      resizeMode="cover"
+      resizeMode="contain"
     >
       <View style={styles.overlay}>
         <ScrollView

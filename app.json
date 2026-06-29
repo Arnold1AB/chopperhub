@@ -25,7 +25,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splashscreen_logo.png",
+          "image": "./assets/images/chopperhub-logo.png",
           "backgroundColor": "#0F172A",
           "resizeMode": "contain"
         }

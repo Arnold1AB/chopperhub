@@ -4,6 +4,7 @@ import {
   getNotificationsUnavailableMessage,
   getPermissionStatus,
   requestPermissions,
+  scheduleMealReminders,
 } from "@/utils/notifications";
 import * as Linking from "expo-linking";
 import { useEffect, useState } from "react";
@@ -37,11 +38,12 @@ export default function NotificationsScreen() {
     const granted = await requestPermissions();
 
     if (granted) {
+      await scheduleMealReminders();
       setEnabled(true);
 
       Alert.alert(
         "Notifications Enabled",
-        "Daily hydration reminders are now active.",
+        "Daily meal, water, and tracker reminders are now active.",
       );
     } else {
       Alert.alert(
@@ -60,7 +62,7 @@ export default function NotificationsScreen() {
       <Text style={globalStyles.title}>Notifications</Text>
 
       <Text style={styles.subtitle}>
-        Manage hydration reminders and notification permissions.
+        Manage daily reminders for meal logging, water, and tracker review.
       </Text>
 
       <View style={styles.card}>
@@ -93,6 +95,16 @@ export default function NotificationsScreen() {
         <TouchableOpacity style={styles.secondaryButton} onPress={openSettings}>
           <Text style={styles.secondaryText}>Open Device Settings</Text>
         </TouchableOpacity>
+      </View>
+
+      <View style={styles.card}>
+        <Text style={styles.cardTitle}>Daily Schedule</Text>
+        <Text style={styles.body}>
+          8:00 AM - Plan your first meal{"\n"}
+          12:30 PM - Log lunch{"\n"}
+          3:30 PM - Drink more water{"\n"}
+          7:30 PM - Review your tracker
+        </Text>
       </View>
     </ScrollView>
   );

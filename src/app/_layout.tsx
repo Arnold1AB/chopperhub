@@ -1,7 +1,8 @@
-import { supabase } from "@/lib/supabase";
+import { auth } from "@/lib/firebase";
 import Constants from "expo-constants";
 import { Stack, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
+import { onAuthStateChanged } from "firebase/auth";
 import { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, View } from "react-native";
 import { PostHogProvider, usePostHog } from "posthog-react-native";
@@ -40,18 +41,16 @@ function AnalyticsTracker() {
   useEffect(() => {
     posthog.capture("app opened");
 
-    const { data: listener } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        if (session?.user) {
-          posthog.identify(session.user.id);
-          return;
-        }
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        posthog.identify(user.uid);
+        return;
+      }
 
-        posthog.reset();
-      },
-    );
+      posthog.reset();
+    });
 
-    return () => listener.subscription.unsubscribe();
+    return unsubscribe;
   }, [posthog]);
 
   return null;
@@ -63,7 +62,7 @@ export default function RootLayout() {
   useEffect(() => {
     const prepare = async () => {
       try {
-        await supabase.auth.getSession();
+        await auth.authStateReady();
       } catch (error) {
         console.log("SESSION RESTORE ERROR:", error);
       } finally {
@@ -74,11 +73,11 @@ export default function RootLayout() {
 
     prepare();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+    const unsubscribe = onAuthStateChanged(auth, () => {
       setReady(true);
     });
 
-    return () => listener.subscription.unsubscribe();
+    return unsubscribe;
   }, []);
 
   if (!ready) {

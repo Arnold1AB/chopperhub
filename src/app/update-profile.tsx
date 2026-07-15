@@ -1,5 +1,5 @@
-import { supabase } from "@/lib/supabase";
 import { getProfileCompletion } from "@/lib/profileCompletion";
+import { getCurrentUser, getUserProfile, updateUserProfile } from "@/lib/profile";
 import { colors, globalStyles } from "@/styles/global";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
@@ -41,19 +41,11 @@ export default function UpdateProfile() {
 
   const loadProfile = async () => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = getCurrentUser();
 
       if (!user) return;
 
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (error) throw error;
+      const data = await getUserProfile(user.uid);
 
       setFirstName(data?.first_name ?? "");
       setLastName(data?.last_name ?? "");
@@ -78,9 +70,7 @@ export default function UpdateProfile() {
     try {
       setSaving(true);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = getCurrentUser();
 
       if (!user) {
         Alert.alert("Error", "User not found");
@@ -89,7 +79,6 @@ export default function UpdateProfile() {
 
       const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
       const profilePayload = {
-        id: user.id,
         email: user.email,
         first_name: firstName.trim(),
         last_name: lastName.trim(),
@@ -99,9 +88,7 @@ export default function UpdateProfile() {
         food_preference: foodPreference.trim(),
       };
 
-      const { error } = await supabase.from("profiles").upsert(profilePayload);
-
-      if (error) throw error;
+      await updateUserProfile(profilePayload);
 
       setSavedProfile({
         first_name: profilePayload.first_name,

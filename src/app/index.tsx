@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { auth } from "@/lib/firebase";
 import { getSubscriptionAccess } from "@/lib/subscription";
 import { Redirect } from "expo-router";
 import { useEffect, useState } from "react";
@@ -13,11 +13,10 @@ export default function Index() {
   useEffect(() => {
     const checkSession = async () => {
       try {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
+        await auth.authStateReady();
+        const user = auth.currentUser;
 
-        if (!session) {
+        if (!user) {
           setTargetRoute("/signin");
           return;
         }
@@ -26,10 +25,7 @@ export default function Index() {
         setTargetRoute(access.hasAccess ? "/(tabs)/home" : "/subscribe");
       } catch (error) {
         console.log("AUTH GATE ERROR:", error);
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-        setTargetRoute(session ? "/(tabs)/home" : "/signin");
+        setTargetRoute(auth.currentUser ? "/(tabs)/home" : "/signin");
       } finally {
         setLoading(false);
       }
@@ -42,7 +38,7 @@ export default function Index() {
     return (
       <View style={styles.container}>
         <ActivityIndicator color="#35A7FF" />
-        <Text style={styles.text}>Loading ChopperHub...</Text>
+        <Text style={styles.text}>Preparing your tracker...</Text>
       </View>
     );
   }

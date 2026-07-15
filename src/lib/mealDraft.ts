@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { postToApi } from "@/lib/apiClient";
 
 export type MealDraft = {
   name: string;
@@ -14,6 +14,7 @@ export type MealDraft = {
   fibre: number;
   sugar: number;
   sodium: number;
+  water: number;
   followUpQuestions: string[];
   warnings: string[];
 };
@@ -26,17 +27,10 @@ export type AnalyzeMealInput = {
 };
 
 export async function analyzeMealDraft(input: AnalyzeMealInput) {
-  const { data, error } = await supabase.functions.invoke<{
+  const data = await postToApi<{
     draft?: MealDraft;
     error?: string;
-  }>("analyze-meal", {
-    body: input,
-  });
-
-  if (error) {
-    console.log("ANALYZE MEAL FUNCTION ERROR:", error);
-    throw new Error("Meal analysis is unavailable right now.");
-  }
+  }>("/.netlify/functions/analyze-meal", input);
 
   if (!data?.draft) {
     throw new Error(data?.error ?? "No meal draft was returned.");

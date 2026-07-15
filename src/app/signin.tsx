@@ -1,8 +1,8 @@
 import { colors } from "@/styles/global";
 import { Ionicons } from "@expo/vector-icons";
-import * as AuthSession from "expo-auth-session";
+import { auth } from "@/lib/firebase";
 import { router } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
+import { sendPasswordResetEmail, signInWithEmailAndPassword } from "firebase/auth";
 import { useState } from "react";
 import {
   Alert,
@@ -15,35 +15,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { supabase } from "../lib/supabase";
-
-WebBrowser.maybeCompleteAuthSession();
-
-const redirectUrl = AuthSession.makeRedirectUri({
-  scheme: "chopperhub",
-  path: "auth-callback",
-});
-
-const createSessionFromUrl = async (url: string) => {
-  const [, hash = ""] = url.split("#");
-  const query = url.split("?")[1]?.split("#")[0] ?? "";
-  const params = new URLSearchParams(`${query}&${hash}`);
-  const errorDescription = params.get("error_description");
-  const accessToken = params.get("access_token");
-  const refreshToken = params.get("refresh_token");
-
-  if (errorDescription) throw new Error(errorDescription);
-  if (!accessToken || !refreshToken) return null;
-
-  const { data, error } = await supabase.auth.setSession({
-    access_token: accessToken,
-    refresh_token: refreshToken,
-  });
-
-  if (error) throw error;
-
-  return data.session;
-};
 
 export default function SignInScreen() {
   const [email, setEmail] = useState("");
@@ -60,61 +31,34 @@ export default function SignInScreen() {
         return;
       }
 
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+      const { user } = await signInWithEmailAndPassword(
+        auth,
+        email.trim(),
         password,
-      });
+      );
 
-      if (error) {
-        Alert.alert("Sign In Failed", error.message);
-        return;
-      }
-
-      if (data.session) {
+      if (user) {
         router.replace("/");
       }
-    } catch (error) {
+    } catch (error: any) {
       console.log(error);
 
-      Alert.alert("Error", "Unable to sign in.");
+      Alert.alert("Sign In Failed", error?.message || "Unable to sign in.");
     }
   };
 
-  const handleGoogleSignIn = async () => {
+  const handlePasswordReset = async () => {
     try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: redirectUrl,
-          skipBrowserRedirect: true,
-        },
-      });
-
-      if (error) {
-        Alert.alert("Google Sign In Failed", error.message);
+      if (!email.trim()) {
+        Alert.alert("Email Needed", "Enter your email address first.");
         return;
       }
 
-      if (!data.url) {
-        Alert.alert("Google Sign In Failed", "Unable to start Google sign in.");
-        return;
-      }
-
-      const result = await WebBrowser.openAuthSessionAsync(
-        data.url,
-        redirectUrl,
-      );
-
-      if (result.type !== "success") return;
-
-      const session = await createSessionFromUrl(result.url);
-
-      if (session) {
-        router.replace("/");
-      }
-    } catch (error) {
+      await sendPasswordResetEmail(auth, email.trim());
+      Alert.alert("Reset Email Sent", "Check your email for reset instructions.");
+    } catch (error: any) {
       console.log(error);
-      Alert.alert("Google Sign In Failed", "Unable to complete Google sign in.");
+      Alert.alert("Reset Failed", error?.message || "Unable to send reset email.");
     }
   };
 
@@ -135,8 +79,6 @@ export default function SignInScreen() {
             source={require("../../assets/images/chopperhub-logo.png")}
             style={styles.logoImage}
           />
-
-          <Text style={styles.logo}>ChopperHub</Text>
 
           <Text style={styles.subtitle}>Track meals. Build consistency.</Text>
 
@@ -183,9 +125,18 @@ export default function SignInScreen() {
 
             <TouchableOpacity
               style={styles.googleButton}
-              onPress={handleGoogleSignIn}
+              onPress={() =>
+                Alert.alert(
+                  "Google Sign In",
+                  "Google sign-in will be added after Firebase OAuth client IDs are configured.",
+                )
+              }
             >
               <Text style={styles.googleButtonText}>Continue with Google</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={handlePasswordReset}>
+              <Text style={styles.resetLink}>Forgot password?</Text>
             </TouchableOpacity>
 
             <TouchableOpacity onPress={() => router.push("/signup")}>
@@ -226,19 +177,11 @@ const styles = StyleSheet.create({
     resizeMode: "contain",
   },
 
-  logo: {
-    color: "#FFFFFF",
-    fontSize: 34,
-    fontWeight: "800",
-    textAlign: "center",
-    marginTop: 12,
-  },
-
   subtitle: {
     color: "#E5E7EB",
     textAlign: "center",
     fontSize: 15,
-    marginTop: 8,
+    marginTop: 12,
     marginBottom: 30,
   },
 
@@ -322,6 +265,13 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 24,
     fontSize: 15,
+    fontWeight: "600",
+  },
+  resetLink: {
+    color: "#E5E7EB",
+    textAlign: "center",
+    marginTop: 18,
+    fontSize: 14,
     fontWeight: "600",
   },
 });

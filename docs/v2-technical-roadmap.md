@@ -81,16 +81,16 @@ Flow:
 sequenceDiagram
     participant User
     participant App as Expo App
-    participant Backend as Supabase Edge Function
-    participant OpenAI as OpenAI Audio Transcription
+    participant Backend as Firebase Cloud Function
+    participant Groq as Groq Whisper Transcription
     participant Parser as Meal Parser
-    participant DB as Supabase Database
+    participant DB as Firestore
 
     User->>App: Holds mic and speaks meal
     App->>App: Records audio with expo-audio
     App->>Backend: Uploads audio file
-    Backend->>OpenAI: Sends audio for transcription
-    OpenAI-->>Backend: Returns transcript text
+    Backend->>Groq: Sends audio for transcription
+    Groq-->>Backend: Returns transcript text
     Backend->>Parser: Extracts structured meal draft
     Parser-->>Backend: Meal draft + follow-up questions
     Backend-->>App: Returns draft
@@ -102,15 +102,15 @@ sequenceDiagram
 Implementation notes:
 
 - Use `expo-audio` for recording.
-- Use OpenAI audio transcription through the backend.
-- Do not put `OPENAI_API_KEY` in the Expo app.
+- Use Groq Whisper Transcription through the backend.
+- Do not put `GROQ_API_KEY` in the Expo app.
 - Keep recordings short for cost, speed, and upload reliability.
 - Delete temporary audio after processing unless there is a product reason to retain it.
 
 Reference:
 
 - Expo Audio v55: https://docs.expo.dev/versions/v55.0.0/sdk/audio/
-- OpenAI Speech to Text: https://developers.openai.com/api/docs/guides/speech-to-text
+- Groq Speech to Text: https://developers.Groq.com/api/docs/guides/speech-to-text
 
 ### 3. Camera Meal Scan
 
@@ -123,16 +123,16 @@ sequenceDiagram
     participant User
     participant App as Expo App
     participant Cloudinary
-    participant Backend as Supabase Edge Function
-    participant OpenAI as OpenAI Responses Vision
-    participant DB as Supabase Database
+    participant Backend as Firebase Cloud Function
+    participant Groq as Groq text analysis
+    participant DB as Firestore
 
     User->>App: Takes meal photo
     App->>Cloudinary: Uploads image
     Cloudinary-->>App: Returns secure image URL
     App->>Backend: Sends image URL and optional text/voice transcript
-    Backend->>OpenAI: Sends image input for meal analysis
-    OpenAI-->>Backend: Returns likely foods + questions
+    Backend->>Groq: Sends image input for meal analysis
+    Groq-->>Backend: Returns likely foods + questions
     Backend-->>App: Returns meal draft
     App->>User: Shows confirm/edit screen
     User->>App: Confirms
@@ -143,14 +143,14 @@ Implementation notes:
 
 - Use `expo-camera` or `expo-image-picker` depending on UX.
 - Use Cloudinary for image upload and optimization.
-- Use OpenAI Responses API for image understanding, not the OpenAI Images API for generation.
+- Use Groq API for image understanding, not the Groq Images API for generation.
 - Use image + voice/text together when possible. Voice explains what the camera cannot know.
 
 Reference:
 
 - Expo Camera v55: https://docs.expo.dev/versions/v55.0.0/sdk/camera/
 - Expo ImagePicker v55: https://docs.expo.dev/versions/v55.0.0/sdk/imagepicker/
-- OpenAI Images and Vision: https://developers.openai.com/api/docs/guides/images-vision
+- Groq model docs: https://developers.Groq.com/api/docs/guides/images-vision
 - Cloudinary uploads: https://cloudinary.com/documentation/upload_images
 
 ### 4. AI Meal Drafting
@@ -279,7 +279,7 @@ Goal: answer "How am I doing today?"
 Proposed structure:
 
 ```text
-Meal-lysis
+Nutrition analysis
 Short plain-language insight
 
 Today
@@ -326,12 +326,12 @@ Sections:
 
 ```mermaid
 flowchart TD
-    A[Expo App] --> B[Supabase Auth]
-    A --> C[Supabase Database]
+    A[Expo App] --> B[Firebase Auth]
+    A --> C[Firestore]
     A --> D[Cloudinary Upload]
-    A --> E[Supabase Edge Functions]
-    E --> F[OpenAI Audio Transcription]
-    E --> G[OpenAI Responses Vision/Text]
+    A --> E[Netlify Functions]
+    E --> F[Groq Whisper Transcription]
+    E --> G[Groq text analysis]
     E --> C
     D --> H[Image URL]
     H --> E
@@ -340,11 +340,11 @@ flowchart TD
 ### Recommended Services
 
 - Expo SDK 55 for the mobile app.
-- Supabase Auth for users.
-- Supabase Database for meals, profiles, subscription state, and logs.
-- Supabase Edge Functions for OpenAI calls and Cloudinary signing.
+- Firebase Auth for users.
+- Firestore for meals, profiles, subscription state, and logs.
+- Netlify Functions for Groq calls and Cloudinary signing.
 - Cloudinary for meal image storage and delivery.
-- OpenAI for transcription, image understanding, and meal parsing.
+- Groq for transcription, image understanding, and meal parsing.
 
 ## Data Model Changes
 
@@ -409,7 +409,7 @@ Responsibilities:
 
 - Validate user.
 - Validate file size/type.
-- Send audio to OpenAI transcription.
+- Send audio to Groq transcription.
 - Return transcript.
 - Avoid storing audio unless explicitly needed.
 
@@ -432,7 +432,7 @@ Output:
 
 Responsibilities:
 
-- Send text/image to OpenAI Responses API.
+- Send text/image to Groq API.
 - Enforce structured output.
 - Return draft and follow-up questions.
 - Avoid saving until user confirms.
@@ -459,7 +459,7 @@ Development:
 Production:
 
 - Use signed uploads through backend.
-- Store only optimized image URLs in Supabase.
+- Store only optimized image URLs in Firestore.
 - Consider deleting images if a user deletes the associated meal.
 
 Recommended transformations:
@@ -468,12 +468,12 @@ Recommended transformations:
 - Convert to efficient format for delivery.
 - Avoid uploading original huge camera files when possible.
 
-## OpenAI Plan
+## Groq Plan
 
 Required backend secret:
 
 ```text
-OPENAI_API_KEY
+GROQ_API_KEY
 ```
 
 Recommended capabilities:
@@ -482,7 +482,7 @@ Recommended capabilities:
 - Responses API for text/image meal analysis.
 - Structured outputs for reliable JSON.
 
-Do not expose the OpenAI key in:
+Do not expose the Groq key in:
 
 - Expo public env vars
 - app config `extra`
@@ -613,7 +613,7 @@ Test devices:
 
 Architecture:
 
-- No OpenAI key in mobile code.
+- No Groq key in mobile code.
 - AI calls go through backend.
 - Cloudinary upload is signed for production.
 - Meal save only happens after user confirmation.
@@ -691,7 +691,7 @@ Security:
 
 ### Phase 6: Vision
 
-- Send image URL to OpenAI Responses API.
+- Send image URL to Groq API.
 - Return food detection and follow-up questions.
 - Combine image + voice/text.
 
@@ -775,5 +775,5 @@ v2.0 is done when:
 - Existing v1 meals still work.
 - App passes lint/type/build checks.
 - Preview build is tested on a real device.
-- OpenAI and Cloudinary secrets are not exposed.
+- Groq and Cloudinary secrets are not exposed.
 - Version 1 rollback is preserved.

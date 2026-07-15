@@ -38,7 +38,11 @@ export default function TabsLayout() {
 
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
-        tabBarShowLabel: false,
+        tabBarShowLabel: true,
+        tabBarLabelStyle: {
+          fontSize: 11,
+          fontWeight: "700",
+        },
       }}
     >
       <Tabs.Screen
@@ -54,7 +58,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="meals"
         options={{
-          title: "Meals",
+          title: "Meal",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="restaurant" size={size} color={color} />
           ),
@@ -84,7 +88,7 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="subscriptions"
         options={{
-          title: "Subscriptions",
+          title: "Plans",
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="card" size={size} color={color} />
           ),

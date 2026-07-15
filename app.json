@@ -7,7 +7,8 @@
     "scheme": "chopperhub",
     "icon": "./assets/images/chopperhub-logo.png",
     "ios": {
-      "icon": "./assets/images/chopperhub-logo.png"
+      "icon": "./assets/images/chopperhub-logo.png",
+      "bundleIdentifier": "com.arnoldab.chopperhub"
     },
     "android": {
       "package": "com.arnoldab.chopperhub",
@@ -42,14 +43,35 @@
             "useLegacyPackaging": true
           }
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "ChopperHub uses your photos when you choose a meal image to analyze.",
+          "cameraPermission": "ChopperHub uses your camera to capture meal photos for analysis."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "ChopperHub uses your microphone to turn spoken meals into text.",
+          "recordAudioAndroid": true,
+          "enableBackgroundRecording": false,
+          "enableBackgroundPlayback": false
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true
     },
     "extra": {
-      "EXPO_PUBLIC_SUPABASE_URL": "https://nzjguyimohajzvjsqtxm.supabase.co",
-      "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im56amd1eWltb2hhanp2anNxdHhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0ODc1MjMsImV4cCI6MjA5NzA2MzUyM30.LSG7SBpglb7_QCEJpU20zTpbxC4EHpAo0bzP4en2uWs",
+      "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyCVhXMn0YvbvR8BXPdRP0Rt3vsZEEZfFas",
+      "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "chopperhub-9d39b.firebaseapp.com",
+      "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "chopperhub-9d39b",
+      "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "chopperhub-9d39b.firebasestorage.app",
+      "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "432377290151",
+      "EXPO_PUBLIC_FIREBASE_APP_ID": "1:432377290151:web:5d5765a93963cc6881aa82",
+      "EXPO_PUBLIC_CHOPPERHUB_API_URL": "https://chopperhub.netlify.app",
       "eas": {
         "projectId": "b8faad3a-84cc-4623-b1c2-eac2d0f2f18f"
       }

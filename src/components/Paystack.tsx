@@ -36,7 +36,7 @@ export default function Paystack() {
       setPaymentError("");
       setProcessingPlan(plan);
 
-      const checkout = await initializePaystackCheckout(plan);
+      const checkout = await initializePaystackCheckout(plan, callbackUrl);
       const result = await WebBrowser.openAuthSessionAsync(
         checkout.authorization_url,
         callbackUrl,
@@ -76,8 +76,8 @@ export default function Paystack() {
       </View>
 
       <Text style={styles.body}>
-        Continue after your 14-day trial with meal tracking, Meal-lysis
-        insights, and daily food and water reminders.
+        Continue after your 14-day trial with meal tracking, nutrition
+        analysis, and daily food and water reminders.
       </Text>
 
       {paymentError && (

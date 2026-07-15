@@ -1,8 +1,13 @@
-import { supabase } from "@/lib/supabase";
+import { auth } from "@/lib/firebase";
 import { colors, globalStyles } from "@/styles/global";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
+import {
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  updatePassword,
+} from "firebase/auth";
 import { useState } from "react";
 import {
   Alert,
@@ -54,27 +59,17 @@ export default function UpdatePasswordScreen() {
 
       setLoading(true);
 
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = auth.currentUser;
 
       if (!user?.email) throw new Error("User session not found.");
 
-      const { error: verifyError } = await supabase.auth.signInWithPassword({
-        email: user.email,
-        password: currentPassword,
-      });
+      const credential = EmailAuthProvider.credential(
+        user.email,
+        currentPassword,
+      );
 
-      if (verifyError) {
-        Alert.alert("Authentication Failed", "Current password is incorrect.");
-        return;
-      }
-
-      const { error } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
-
-      if (error) throw error;
+      await reauthenticateWithCredential(user, credential);
+      await updatePassword(user, newPassword);
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 

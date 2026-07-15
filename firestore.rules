@@ -1,0 +1,46 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function subscriptionFieldsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'subscription_status',
+        'subscription_plan',
+        'subscription_expires_at',
+        'paystack_customer_code'
+      ]);
+    }
+
+    function subscriptionCreateIsSafe() {
+      return !request.resource.data.keys().hasAny(['subscription_status']) ||
+        request.resource.data.subscription_status in ['trialing', 'expired'];
+    }
+
+    match /users/{uid} {
+      allow read, delete: if isOwner(uid);
+      allow create: if isOwner(uid) && subscriptionCreateIsSafe();
+      allow update: if isOwner(uid) && !subscriptionFieldsChanged();
+
+      match /meals/{mealId} {
+        allow read, create, update, delete: if isOwner(uid);
+      }
+
+      match /trackerHistory/{periodId} {
+        allow read, create, update, delete: if isOwner(uid);
+      }
+
+      match /subscriptionPayments/{paymentId} {
+        allow read: if isOwner(uid);
+        allow write: if false;
+      }
+    }
+  }
+}

@@ -1,111 +1,59 @@
-import { getTrackerSummary } from "@/lib/groq";
-import { getMeals } from "@/lib/meals";
-import { supabase } from "@/lib/supabase";
-import { colors, globalStyles } from "@/styles/global";
-import { useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
+import {
+  AppButton,
+  BodyText,
+  Card,
+  EmptyState,
+  Screen,
+  SectionHeader,
+} from "@/components/ui";
+import { getMeals, Meal, clearTodayMeals as deleteTodayMeals } from "@/lib/meals";
+import {
+  buildTrackerAnalysisInput,
+  calculateMealTotals,
+  getMealsInLastDays,
+  getTrackerAnalysis,
+  TrackerAnalysis,
+} from "@/lib/trackerAnalysis";
+import { colors, radii, spacing, typography } from "@/styles/global";
+import { router, useFocusEffect } from "expo-router";
+import { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 
+const startOfDay = (date: Date) =>
+  new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+const isToday = (meal: Meal) => {
+  const createdAt = new Date(meal.created_at);
+  const start = startOfDay(new Date());
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1);
+
+  return createdAt >= start && createdAt < end;
+};
+
+const formatNumber = (value: number) => Math.round(value).toLocaleString();
+
 export default function Tracker() {
   const [loading, setLoading] = useState(true);
-  const [summary, setSummary] = useState("");
-  const [expanded, setExpanded] = useState(false);
-
-  const [totals, setTotals] = useState({
-    meals: 0,
-    calories: 0,
-    protein: 0,
-    carbs: 0,
-    fat: 0,
-    fibre: 0,
-    sugar: 0,
-    sodium: 0,
-    water: 0,
-  });
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [meals, setMeals] = useState<Meal[]>([]);
+  const [analysis, setAnalysis] = useState<TrackerAnalysis | null>(null);
 
   const loadTracker = useCallback(async () => {
     try {
       setLoading(true);
-
-      const meals = await getMeals();
-
-      const now = new Date();
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
-
-      const todaysMeals = meals.filter((meal) => {
-        const createdAt = new Date(meal.created_at);
-        return createdAt >= start && createdAt < end;
-      });
-
-      const calculated = todaysMeals.reduce(
-        (acc, meal) => {
-          const protein = Number(meal.protein || 0);
-          const carbs = Number(meal.carbs || 0);
-          const fat = Number(meal.fat || 0);
-
-          const calories = protein * 4 + carbs * 4 + fat * 9;
-
-          return {
-            meals: acc.meals + 1,
-            calories: acc.calories + calories,
-            protein: acc.protein + protein,
-            carbs: acc.carbs + carbs,
-            fat: acc.fat + fat,
-            fibre: acc.fibre + Number(meal.fibre || 0),
-            sugar: acc.sugar + Number(meal.sugar || 0),
-            sodium: acc.sodium + Number(meal.sodium || 0),
-            water: acc.water + Number(meal.water || 0),
-          };
-        },
-        {
-          meals: 0,
-          calories: 0,
-          protein: 0,
-          carbs: 0,
-          fat: 0,
-          fibre: 0,
-          sugar: 0,
-          sodium: 0,
-          water: 0,
-        },
-      );
-
-      setTotals(calculated);
-
-      if (calculated.meals === 0) {
-        setSummary(
-          "Hi, log your meals for today. Small consistent choices make your nutrition easier to understand.",
-        );
-        setLoading(false);
-        return;
-      }
-
-      const safeData = {
-        meals: calculated.meals ?? 0,
-        calories: calculated.calories ?? 0,
-        protein: calculated.protein ?? 0,
-        carbs: calculated.carbs ?? 0,
-        fat: calculated.fat ?? 0,
-        fibre: calculated.fibre ?? 0,
-        sugar: calculated.sugar ?? 0,
-        sodium: calculated.sodium ?? 0,
-        water: calculated.water ?? 0,
-      };
-
-      const aiSummary = await getTrackerSummary(safeData);
-      setSummary(aiSummary);
+      const allMeals = await getMeals();
+      setMeals(allMeals);
     } catch (error) {
-      console.log("TRACKER ERROR:", error);
-      setSummary("Meal-lysis is unable to generate analysis right now.");
+      console.log("TRACKER LOAD ERROR:", error);
+      setMeals([]);
     } finally {
       setLoading(false);
     }
@@ -117,43 +65,16 @@ export default function Tracker() {
     }, [loadTracker]),
   );
 
-  const clearTodayMeals = async () => {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) throw new Error("User not found");
-
-      const now = new Date();
-
-      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-
-      const end = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate() + 1,
-      );
-
-      const { error } = await supabase
-        .from("meals")
-        .delete()
-        .eq("user_id", user.id)
-        .gte("created_at", start.toISOString())
-        .lt("created_at", end.toISOString());
-
-      if (error) {
-        console.log("DELETE ERROR:", error);
-        throw error;
-      }
-    } catch (err) {
-      console.log("DELETE FAILED:", err);
-      throw err;
-    }
-  };
+  const todayMeals = useMemo(() => meals.filter(isToday), [meals]);
+  const todayTotals = useMemo(() => calculateMealTotals(todayMeals), [todayMeals]);
+  const thirtyDayMeals = useMemo(() => getMealsInLastDays(meals, 30), [meals]);
+  const thirtyDayInput = useMemo(
+    () => buildTrackerAnalysisInput(meals, 30),
+    [meals],
+  );
 
   const handleClearTodayMeals = () => {
-    if (totals.meals === 0) {
+    if (todayMeals.length === 0) {
       Alert.alert("Nothing to Clear", "No meals have been logged today.");
       return;
     }
@@ -165,24 +86,9 @@ export default function Tracker() {
         style: "destructive",
         onPress: async () => {
           try {
-            await clearTodayMeals();
-
-            setTotals({
-              meals: 0,
-              calories: 0,
-              protein: 0,
-              carbs: 0,
-              fat: 0,
-              fibre: 0,
-              sugar: 0,
-              sodium: 0,
-              water: 0,
-            });
-
-            setSummary(
-              "Hi, log your meals for today and remember what you eat matters.",
-            );
-
+            await deleteTodayMeals();
+            setAnalysis(null);
+            await loadTracker();
             Alert.alert("Deleted", "Today's meals have been removed.");
           } catch (error) {
             console.log(error);
@@ -193,23 +99,58 @@ export default function Tracker() {
     ]);
   };
 
+  const handleGenerateAnalysis = async () => {
+    if (thirtyDayMeals.length === 0) {
+      Alert.alert("No Meals Yet", "Log a meal before generating analysis.");
+      return;
+    }
+
+    try {
+      setAnalysisLoading(true);
+      const result = await getTrackerAnalysis(thirtyDayInput);
+      setAnalysis(result);
+    } catch (error: any) {
+      console.log("TRACKER ANALYSIS ERROR:", error);
+      Alert.alert(
+        "Analysis Unavailable",
+        error?.message ||
+          "Tracker analysis is unavailable right now. Check the Netlify backend and Groq API key.",
+      );
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
+
+  const handleShareAnalysis = async () => {
+    if (!analysis?.exportText) {
+      Alert.alert("No Analysis Yet", "Generate the 30-day analysis first.");
+      return;
+    }
+
+    await Share.share({
+      title: "ChopperHub 30-Day Nutrition Analysis",
+      message: analysis.exportText,
+    });
+  };
+
   return (
-    <ScrollView
-      style={globalStyles.container}
-      contentContainerStyle={styles.content}
-      showsVerticalScrollIndicator={false}
-    >
+    <Screen contentStyle={styles.content}>
       <View style={styles.header}>
-        <Text style={styles.trackerTitle}>Tracker</Text>
+        <View style={styles.headerCopy}>
+          <Text style={styles.title}>Tracker</Text>
+          <BodyText muted>
+            Your confirmed meals become nutrient totals and AI analysis.
+          </BodyText>
+        </View>
 
         <TouchableOpacity
           onPress={handleClearTodayMeals}
-          disabled={loading || totals.meals === 0}
+          disabled={loading || todayMeals.length === 0}
         >
           <Text
             style={[
               styles.clearToday,
-              (loading || totals.meals === 0) && styles.clearTodayDisabled,
+              (loading || todayMeals.length === 0) && styles.clearTodayDisabled,
             ]}
           >
             Clear Today
@@ -217,123 +158,281 @@ export default function Tracker() {
         </TouchableOpacity>
       </View>
 
-      <Text style={styles.subtitle}>
-        Daily nutrition tracking and meal analysis.
-      </Text>
+      {loading ? (
+        <Card style={styles.loadingCard}>
+          <ActivityIndicator color={colors.secondary} />
+          <BodyText muted>Loading tracker...</BodyText>
+        </Card>
+      ) : meals.length === 0 ? (
+        <EmptyState
+          title="No meals logged yet"
+          body="Log your first meal to build Home totals and Tracker analysis."
+          icon="analytics-outline"
+          action={
+            <AppButton
+              title="Log a meal"
+              icon="add-circle-outline"
+              onPress={() => router.push("/(tabs)/add-meal")}
+            />
+          }
+        />
+      ) : (
+        <>
+          <Card style={styles.card}>
+            <SectionHeader
+              title="Today"
+              subtitle="These totals come from meals confirmed today."
+            />
 
-      <TouchableOpacity
-        style={styles.collapseHeader}
-        onPress={() => setExpanded(!expanded)}
-      >
-        <Text style={styles.collapseTitle}>{"Today's Analytics"}</Text>
-        <Text style={styles.collapseArrow}>{expanded ? "▲" : "▼"}</Text>
-      </TouchableOpacity>
-
-      {expanded && (
-        <View style={styles.statsCard}>
-          {Object.entries(totals).map(([key, value]) => (
-            <View key={key} style={styles.row}>
-              <Text style={styles.label}>{key}</Text>
-              <Text style={styles.value}>{Math.round(value)}</Text>
+            <View style={styles.summaryRow}>
+              <StatBox label="Meals" value={todayMeals.length} />
+              <StatBox
+                label="Calories"
+                value={formatNumber(todayTotals.calories)}
+              />
             </View>
-          ))}
-        </View>
+
+            <View style={styles.nutritionGrid}>
+              <NutrientTile
+                label="Protein"
+                value={`${formatNumber(todayTotals.protein)}g`}
+              />
+              <NutrientTile
+                label="Carbs"
+                value={`${formatNumber(todayTotals.carbs)}g`}
+              />
+              <NutrientTile label="Fat" value={`${formatNumber(todayTotals.fat)}g`} />
+              <NutrientTile
+                label="Fibre"
+                value={`${formatNumber(todayTotals.fibre)}g`}
+              />
+              <NutrientTile
+                label="Sugar"
+                value={`${formatNumber(todayTotals.sugar)}g`}
+              />
+              <NutrientTile
+                label="Sodium"
+                value={`${formatNumber(todayTotals.sodium)}mg`}
+              />
+              <NutrientTile
+                label="Water"
+                value={`${todayTotals.water.toFixed(1)}L`}
+              />
+            </View>
+          </Card>
+
+          <Card style={styles.card}>
+            <SectionHeader
+              title="Meal Estimator"
+              subtitle="AI analyzes your last 30 days without showing a long food log."
+            />
+
+            <View style={styles.summaryRow}>
+              <StatBox label="30-day meals" value={thirtyDayInput.mealsLogged} />
+              <StatBox label="Logged days" value={thirtyDayInput.loggedDays} />
+            </View>
+
+            <View style={styles.analysisIntro}>
+              <BodyText muted>
+                Generate this when you want the report. It uses the Netlify AI
+                backend, so it does not run automatically on every screen open.
+              </BodyText>
+            </View>
+
+            <AppButton
+              title={analysis ? "Refresh 30-day analysis" : "Generate 30-day analysis"}
+              icon="sparkles"
+              onPress={handleGenerateAnalysis}
+              loading={analysisLoading}
+            />
+
+            {analysis && <AnalysisResult analysis={analysis} />}
+          </Card>
+
+          <View style={styles.footerActions}>
+            <AppButton
+              title="Share analysis"
+              icon="share-social-outline"
+              variant="secondary"
+              onPress={handleShareAnalysis}
+              disabled={!analysis}
+            />
+            <AppButton
+              title="Log another meal"
+              icon="add-circle-outline"
+              onPress={() => router.push("/(tabs)/add-meal")}
+            />
+          </View>
+        </>
       )}
+    </Screen>
+  );
+}
 
-      <View style={styles.aiCard}>
-        <Text style={styles.aiTitle}>Meal-lysis</Text>
+function StatBox({ label, value }: { label: string; value: string | number }) {
+  return (
+    <View style={styles.statBox}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue}>{value}</Text>
+    </View>
+  );
+}
 
-        {loading ? (
-          <ActivityIndicator size="small" color={colors.primary} />
-        ) : (
-          <Text style={styles.aiText}>{summary}</Text>
-        )}
-      </View>
-    </ScrollView>
+function NutrientTile({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.nutrientTile}>
+      <Text style={styles.nutrientLabel}>{label}</Text>
+      <Text style={styles.nutrientValue}>{value}</Text>
+    </View>
+  );
+}
+
+function AnalysisResult({ analysis }: { analysis: TrackerAnalysis }) {
+  return (
+    <View style={styles.analysisBlock}>
+      <Text style={styles.analysisSummary}>{analysis.summary}</Text>
+
+      <AnalysisList title="Patterns" items={analysis.patterns} />
+      <AnalysisList title="Strengths" items={analysis.strengths} />
+      <AnalysisList title="Nutrient gaps" items={analysis.nutrientGaps} />
+      <AnalysisList title="Next actions" items={analysis.nextActions} />
+    </View>
+  );
+}
+
+function AnalysisList({ title, items }: { title: string; items: string[] }) {
+  if (items.length === 0) return null;
+
+  return (
+    <View style={styles.analysisList}>
+      <Text style={styles.analysisListTitle}>{title}</Text>
+      {items.slice(0, 3).map((item) => (
+        <Text key={item} style={styles.analysisItem}>
+          {item}
+        </Text>
+      ))}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   content: {
-    paddingBottom: 120,
+    gap: spacing.xl,
   },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 16,
+    alignItems: "flex-start",
+    gap: spacing.lg,
   },
-  trackerTitle: {
-    color: colors.primary,
-    fontSize: 24,
-    fontWeight: "800",
+  headerCopy: {
+    flex: 1,
+    gap: spacing.sm,
   },
-  subtitle: {
-    color: colors.textMuted,
-    fontSize: 14,
-    marginBottom: 20,
+  title: {
+    ...typography.screenTitle,
   },
   clearToday: {
-    color: "#EF4444",
+    color: colors.danger,
     fontWeight: "800",
+    paddingTop: spacing.xs,
   },
   clearTodayDisabled: {
     color: colors.textMuted,
     opacity: 0.55,
   },
-  collapseHeader: {
-    backgroundColor: colors.surface,
-    borderRadius: 18,
-    padding: 18,
-    marginBottom: 14,
+  loadingCard: {
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  card: {
+    gap: spacing.lg,
+  },
+  summaryRow: {
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  statBox: {
+    flex: 1,
+    minHeight: 92,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radii.md,
     borderWidth: 1,
     borderColor: colors.border,
-    flexDirection: "row",
+    padding: spacing.lg,
     justifyContent: "space-between",
   },
-  collapseTitle: {
-    color: colors.primary,
-    fontWeight: "700",
-  },
-  collapseArrow: {
-    color: colors.secondary,
-  },
-  statsCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 18,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  row: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingVertical: 10,
-  },
-  label: {
+  statLabel: {
     color: colors.textMuted,
-  },
-  value: {
-    color: colors.primary,
-    fontWeight: "700",
-  },
-  aiCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 18,
-    padding: 20,
-    marginTop: 18,
-  },
-  aiTitle: {
-    color: colors.primary,
+    fontSize: 12,
     fontWeight: "800",
-    marginBottom: 12,
-    fontSize: 18,
+    textTransform: "uppercase",
   },
-
-  aiText: {
+  statValue: {
     color: colors.primary,
-    fontSize: 15,
-    fontWeight: "600",
+    fontSize: 24,
+    fontWeight: "800",
+  },
+  nutritionGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.md,
+  },
+  nutrientTile: {
+    flexBasis: "30%",
+    flexGrow: 1,
+    minHeight: 76,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    justifyContent: "space-between",
+  },
+  nutrientLabel: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  nutrientValue: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  analysisIntro: {
+    borderRadius: radii.md,
+    backgroundColor: colors.surfaceElevated,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+  },
+  analysisBlock: {
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: spacing.lg,
+    gap: spacing.lg,
+  },
+  analysisSummary: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: "700",
     lineHeight: 24,
+  },
+  analysisList: {
+    gap: spacing.sm,
+  },
+  analysisListTitle: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  analysisItem: {
+    color: colors.primary,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  footerActions: {
+    gap: spacing.md,
   },
 });

@@ -1,6 +1,6 @@
 import { getMeals, Meal } from "@/lib/meals";
 import { getProfileCompletion } from "@/lib/profileCompletion";
-import { supabase } from "@/lib/supabase";
+import { getCurrentUser, getUserProfile } from "@/lib/profile";
 import { colors, globalStyles } from "@/styles/global";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -44,26 +44,14 @@ export default function HomeScreen() {
 
   const loadProfile = useCallback(async () => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = getCurrentUser();
 
       if (!user) {
         setProfile(null);
         return;
       }
 
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("first_name,last_name,phone,profession,food_preference")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (error) {
-        console.log("HOME PROFILE ERROR:", error);
-        setProfile(null);
-        return;
-      }
+      const data = await getUserProfile(user.uid);
 
       setProfile(data);
     } catch (error) {
@@ -85,6 +73,16 @@ export default function HomeScreen() {
 
   const completion = getProfileCompletion(profile);
   const firstName = profile?.first_name?.trim() || "there";
+  const todayMealCount = meals.filter((meal) => {
+    const createdAt = new Date(meal.created_at);
+    const now = new Date();
+
+    return (
+      createdAt.getFullYear() === now.getFullYear() &&
+      createdAt.getMonth() === now.getMonth() &&
+      createdAt.getDate() === now.getDate()
+    );
+  }).length;
 
   return (
     <ScrollView
@@ -103,6 +101,26 @@ export default function HomeScreen() {
       </View>
 
       <HomeHeader />
+
+      <View style={styles.mealSummaryCard}>
+        <View>
+          <Text style={styles.mealSummaryLabel}>Meals logged</Text>
+          <Text style={styles.mealSummaryValue}>{meals.length}</Text>
+        </View>
+        <View style={styles.mealSummaryDivider} />
+        <View>
+          <Text style={styles.mealSummaryLabel}>Today</Text>
+          <Text style={styles.mealSummaryValue}>{todayMealCount}</Text>
+        </View>
+        <TouchableOpacity
+          style={styles.logMealButton}
+          activeOpacity={0.86}
+          onPress={() => router.push("/(tabs)/add-meal")}
+        >
+          <Ionicons name="add" size={18} color="#0F172A" />
+          <Text style={styles.logMealButtonText}>Log</Text>
+        </TouchableOpacity>
+      </View>
 
       {!completion.complete && (
         <TouchableOpacity
@@ -193,6 +211,49 @@ const styles = StyleSheet.create({
     marginTop: 18,
     borderWidth: 1,
     borderColor: "rgba(53,167,255,0.45)",
+  },
+  mealSummaryCard: {
+    backgroundColor: colors.surface,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: 16,
+    marginTop: 18,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  mealSummaryLabel: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  mealSummaryValue: {
+    color: colors.primary,
+    fontSize: 24,
+    fontWeight: "800",
+    marginTop: 4,
+  },
+  mealSummaryDivider: {
+    width: 1,
+    height: 44,
+    backgroundColor: colors.border,
+  },
+  logMealButton: {
+    marginLeft: "auto",
+    minHeight: 40,
+    borderRadius: 999,
+    backgroundColor: colors.accent,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  logMealButtonText: {
+    color: "#0F172A",
+    fontSize: 13,
+    fontWeight: "800",
   },
   completionTopRow: {
     flexDirection: "row",

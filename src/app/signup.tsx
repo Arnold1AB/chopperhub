@@ -1,8 +1,8 @@
-import { supabase } from "@/lib/supabase";
+import { auth } from "@/lib/firebase";
+import { createUserProfile } from "@/lib/profile";
 import { Ionicons } from "@expo/vector-icons";
-import * as AuthSession from "expo-auth-session";
 import { router } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
+import { createUserWithEmailAndPassword } from "firebase/auth";
 import { useState } from "react";
 import {
   Alert,
@@ -15,34 +15,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-
-WebBrowser.maybeCompleteAuthSession();
-
-const redirectUrl = AuthSession.makeRedirectUri({
-  scheme: "chopperhub",
-  path: "auth-callback",
-});
-
-const createSessionFromUrl = async (url: string) => {
-  const [, hash = ""] = url.split("#");
-  const query = url.split("?")[1]?.split("#")[0] ?? "";
-  const params = new URLSearchParams(`${query}&${hash}`);
-  const errorDescription = params.get("error_description");
-  const accessToken = params.get("access_token");
-  const refreshToken = params.get("refresh_token");
-
-  if (errorDescription) throw new Error(errorDescription);
-  if (!accessToken || !refreshToken) return null;
-
-  const { data, error } = await supabase.auth.setSession({
-    access_token: accessToken,
-    refresh_token: refreshToken,
-  });
-
-  if (error) throw error;
-
-  return data.session;
-};
 
 export default function SignUpScreen() {
   const [fullName, setFullName] = useState("");
@@ -88,31 +60,18 @@ export default function SignUpScreen() {
         return;
       }
 
-      const { data, error } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
+      const credential = await createUserWithEmailAndPassword(
+        auth,
+        email.trim().toLowerCase(),
         password,
-      });
-
-      if (error) {
-        Alert.alert("Sign Up Failed", error.message);
-        clearForm();
-        return;
-      }
-
-      if (!data.user) {
-        Alert.alert("Error", "Unable to create account.");
-        clearForm();
-        return;
-      }
+      );
 
       const names = fullName.trim().split(" ");
       const firstName = names[0] || "";
       const lastName = names.slice(1).join(" ");
 
-      const { error: profileError } = await supabase.from("profiles").upsert({
-        id: data.user.id,
+      await createUserProfile(credential.user.uid, credential.user.email, {
         full_name: fullName.trim(),
-        email: email.trim().toLowerCase(),
         first_name: firstName,
         last_name: lastName,
         phone,
@@ -122,59 +81,20 @@ export default function SignUpScreen() {
         subscription_status: "trialing",
       });
 
-      if (profileError) {
-        console.log("PROFILE CREATE WARNING:", profileError);
-      }
-
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-
-      if (session) {
-        router.replace("/");
-        return;
-      }
-
-      Alert.alert(
-        "Account Created",
-        "Please verify your email before signing in.",
-      );
+      router.replace("/");
       clearForm();
-    } catch (error) {
+    } catch (error: any) {
       console.log("SIGNUP ERROR:", error);
       clearForm();
-      Alert.alert("Error", "Unable to create account.");
+      Alert.alert("Sign Up Failed", error?.message || "Unable to create account.");
     }
   };
 
   const handleGoogleSignIn = async () => {
-    try {
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: { redirectTo: redirectUrl, skipBrowserRedirect: true },
-      });
-
-      if (error) {
-        Alert.alert("Google Sign In Failed", error.message);
-        return;
-      }
-
-      const result = await WebBrowser.openAuthSessionAsync(
-        data.url,
-        redirectUrl,
-      );
-
-      if (result.type === "success") {
-        const session = await createSessionFromUrl(result.url);
-
-        if (session) {
-          router.replace("/");
-        }
-      }
-    } catch (error) {
-      console.log("GOOGLE ERROR:", error);
-      Alert.alert("Error", "Google sign in failed.");
-    }
+    Alert.alert(
+      "Google Sign In",
+      "Google sign-in will be added after Firebase OAuth client IDs are configured.",
+    );
   };
 
   return (

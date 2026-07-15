@@ -9,24 +9,41 @@ import {
 } from "@/components/ui";
 import { analyzeMealDraft, MealDraft } from "@/lib/mealDraft";
 import { addMeal } from "@/lib/meals";
+import { transcribeMealAudio } from "@/lib/voiceTranscription";
 import { colors, radii, spacing, typography } from "@/styles/global";
 import { Ionicons } from "@expo/vector-icons";
+import {
+  RecordingPresets,
+  requestRecordingPermissionsAsync,
+  setAudioModeAsync,
+  useAudioRecorder,
+  useAudioRecorderState,
+} from "expo-audio";
 import * as Haptics from "expo-haptics";
+import * as ImagePicker from "expo-image-picker";
 import { router } from "expo-router";
 import { useMemo, useState } from "react";
-import { Alert, StyleSheet, Text, TextInput, View } from "react-native";
+import { Alert, Image, StyleSheet, Text, TextInput, View } from "react-native";
 
 type LogMode = "type" | "speak" | "scan";
 type MealType = "breakfast" | "lunch" | "dinner" | "snack" | "drink";
 type Portion = "small" | "regular" | "large" | "custom";
 
-const logModes: { label: string; value: LogMode; icon: keyof typeof Ionicons.glyphMap }[] = [
+const logModes: {
+  label: string;
+  value: LogMode;
+  icon: keyof typeof Ionicons.glyphMap;
+}[] = [
   { label: "Type", value: "type", icon: "create-outline" },
   { label: "Speak", value: "speak", icon: "mic-outline" },
   { label: "Scan", value: "scan", icon: "camera-outline" },
 ];
 
-const mealTypes: { label: string; value: MealType; icon: keyof typeof Ionicons.glyphMap }[] = [
+const mealTypes: {
+  label: string;
+  value: MealType;
+  icon: keyof typeof Ionicons.glyphMap;
+}[] = [
   { label: "Breakfast", value: "breakfast", icon: "sunny-outline" },
   { label: "Lunch", value: "lunch", icon: "restaurant-outline" },
   { label: "Dinner", value: "dinner", icon: "moon-outline" },
@@ -48,47 +65,31 @@ const portionMultipliers: Record<Portion, number> = {
   custom: 1,
 };
 
+const metricValue = (value: number, suffix = "") =>
+  value > 0 ? `${Math.round(value)}${suffix}` : "Needs detail";
+
 export default function AddMealScreen() {
   const [logMode, setLogMode] = useState<LogMode>("type");
   const [mealDescription, setMealDescription] = useState("");
   const [mealType, setMealType] = useState<MealType>("lunch");
   const [portion, setPortion] = useState<Portion>("regular");
   const [customPortion, setCustomPortion] = useState("");
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [mealDraft, setMealDraft] = useState<MealDraft | null>(null);
-  const [draftLoading, setDraftLoading] = useState(false);
+  const [capturedPhotoUri, setCapturedPhotoUri] = useState<string | null>(null);
+  const [transcribing, setTranscribing] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [draft, setDraft] = useState<MealDraft | null>(null);
 
-  const [protein, setProtein] = useState("");
-  const [carbs, setCarbs] = useState("");
-  const [fat, setFat] = useState("");
-  const [fibre, setFibre] = useState("");
-  const [sugar, setSugar] = useState("");
-  const [sodium, setSodium] = useState("");
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recorderState = useAudioRecorderState(audioRecorder);
 
-  const [loading, setLoading] = useState(false);
-
-  const mealName = useMemo(() => {
-    const description = mealDescription.trim();
-    if (!description) return "";
-
-    const portionLabel =
-      portion === "custom" && customPortion.trim()
-        ? customPortion.trim()
-        : `${portion} portion`;
-
-    return `${description} (${mealType}, ${portionLabel})`;
-  }, [customPortion, mealDescription, mealType, portion]);
-
-  const estimatedCalories = useMemo(() => {
-    const macroCalories =
-      (Number(protein) || 0) * 4 + (Number(carbs) || 0) * 4 + (Number(fat) || 0) * 9;
-
-    if (macroCalories > 0) {
-      return Math.round(macroCalories * portionMultipliers[portion]);
+  const portionLabel = useMemo(() => {
+    if (portion === "custom" && customPortion.trim()) {
+      return customPortion.trim();
     }
 
-    return null;
-  }, [carbs, fat, portion, protein]);
+    return `${portion} portion`;
+  }, [customPortion, portion]);
 
   const clearForm = () => {
     setLogMode("type");
@@ -96,99 +97,102 @@ export default function AddMealScreen() {
     setMealType("lunch");
     setPortion("regular");
     setCustomPortion("");
-    setAdvancedOpen(false);
-    setMealDraft(null);
-    setProtein("");
-    setCarbs("");
-    setFat("");
-    setFibre("");
-    setSugar("");
-    setSodium("");
+    setCapturedPhotoUri(null);
+    setDraft(null);
   };
 
-  const applyMealDraft = (draft: MealDraft) => {
-    setMealDraft(draft);
+  const handleDescriptionChange = (value: string) => {
+    setMealDescription(value);
+    setDraft(null);
+  };
 
-    if (draft.name.trim()) {
-      setMealDescription(draft.name.trim());
+  const validateMealInput = () => {
+    if (!mealDescription.trim()) {
+      Alert.alert(
+        "Missing Meal",
+        "Describe what you ate before running the nutrient estimate.",
+      );
+      return false;
     }
 
-    if (draft.mealType !== "unknown") {
-      setMealType(draft.mealType);
+    if (portion === "custom" && !customPortion.trim()) {
+      Alert.alert(
+        "Missing Portion",
+        "Add a custom portion or choose small, regular, or large.",
+      );
+      return false;
     }
 
-    if (draft.portion !== "unknown") {
-      setPortion(draft.portion);
-    }
-
-    setProtein(String(Math.round(draft.protein || 0)));
-    setCarbs(String(Math.round(draft.carbs || 0)));
-    setFat(String(Math.round(draft.fat || 0)));
-    setFibre(String(Math.round(draft.fibre || 0)));
-    setSugar(String(Math.round(draft.sugar || 0)));
-    setSodium(String(Math.round(draft.sodium || 0)));
+    return true;
   };
 
   const handleAnalyzeMeal = async () => {
+    if (!validateMealInput()) return;
+
     try {
-      if (!mealDescription.trim()) {
-        Alert.alert("Missing Meal", "Describe what you ate before analysis.");
-        return;
-      }
+      setAnalyzing(true);
 
-      setDraftLoading(true);
-
-      const draft = await analyzeMealDraft({
+      const result = await analyzeMealDraft({
         description: mealDescription.trim(),
         mealType,
-        portion,
+        portion: portionLabel,
       });
 
-      applyMealDraft(draft);
-      setAdvancedOpen(false);
-
+      setDraft(result);
       await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     } catch (error: any) {
       console.error(error);
       Alert.alert(
-        "Analysis Unavailable",
+        "Estimator Unavailable",
         error?.message ||
-          "You can still save this meal manually and analyze it later.",
+          "Meal analysis is unavailable right now. Check the Netlify backend and Groq API key.",
       );
     } finally {
-      setDraftLoading(false);
+      setAnalyzing(false);
     }
   };
 
-  const handleAddMeal = async () => {
+  const handleConfirmSave = async () => {
+    if (!draft) {
+      await handleAnalyzeMeal();
+      return;
+    }
+
     try {
-      if (!mealDescription.trim()) {
-        Alert.alert("Missing Meal", "Describe what you ate before saving.");
-        return;
-      }
-
-      if (portion === "custom" && !customPortion.trim()) {
-        Alert.alert("Missing Portion", "Add a custom portion or choose small, regular, or large.");
-        return;
-      }
-
-      setLoading(true);
+      setSaving(true);
 
       await addMeal({
-        name: mealName,
+        name: draft.name.trim() || mealDescription.trim(),
         quantity: portionMultipliers[portion],
-        protein: Number(protein) || 0,
-        carbs: Number(carbs) || 0,
-        fat: Number(fat) || 0,
-        fibre: Number(fibre) || 0,
-        sugar: Number(sugar) || 0,
-        sodium: Number(sodium) || 0,
-        water: mealType === "drink" ? 0.5 : 0,
+        protein: draft.protein,
+        carbs: draft.carbs,
+        fat: draft.fat,
+        fibre: draft.fibre,
+        sugar: draft.sugar,
+        sodium: draft.sodium,
+        water: draft.water,
+        meal_type: draft.mealType,
+        portion_label: portionLabel,
+        calories_min: draft.caloriesEstimateMin,
+        calories_max: draft.caloriesEstimateMax,
+        confidence: draft.confidence,
+        ingredients: draft.ingredients,
+        follow_up_questions: draft.followUpQuestions,
+        source:
+          logMode === "scan" && capturedPhotoUri
+            ? "photo"
+            : logMode === "speak"
+              ? "voice"
+              : "typed",
+        image_url: capturedPhotoUri,
       });
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      Alert.alert("Meal Saved", "Your meal has been added to today's tracker.");
+      Alert.alert(
+        "Meal Saved",
+        "Home totals and Tracker analysis will update from this meal.",
+      );
 
       clearForm();
       router.replace("/(tabs)/home");
@@ -196,11 +200,11 @@ export default function AddMealScreen() {
       console.error(error);
       Alert.alert("Unable to Save Meal", error?.message || "Please try again.");
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  const handleClearMeals = () => {
+  const handleClearMeal = () => {
     Alert.alert("Clear Meal", "Clear the current meal draft?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -211,11 +215,103 @@ export default function AddMealScreen() {
     ]);
   };
 
-  const handleUnavailableMode = () => {
-    Alert.alert(
-      "Coming in v2",
-      "Voice and camera logging will connect to the transcription and meal scan backend after this guided flow is stable.",
-    );
+  const startRecording = async () => {
+    try {
+      const permission = await requestRecordingPermissionsAsync();
+
+      if (!permission.granted) {
+        Alert.alert(
+          "Microphone Permission Needed",
+          "Allow microphone access to speak a meal into ChopperHub.",
+        );
+        return;
+      }
+
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+      });
+
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (error: any) {
+      console.error(error);
+      Alert.alert(
+        "Recording Unavailable",
+        error?.message || "Unable to start voice recording.",
+      );
+    }
+  };
+
+  const stopRecording = async () => {
+    try {
+      setTranscribing(true);
+
+      await audioRecorder.stop();
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+      });
+
+      const audioUri = audioRecorder.uri;
+
+      if (!audioUri) {
+        Alert.alert("No Audio Found", "Try recording your meal again.");
+        return;
+      }
+
+      const transcript = await transcribeMealAudio(audioUri);
+      handleDescriptionChange(transcript);
+      setLogMode("type");
+
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error: any) {
+      console.error(error);
+      Alert.alert(
+        "Transcription Unavailable",
+        error?.message || "Unable to turn this recording into text.",
+      );
+    } finally {
+      setTranscribing(false);
+    }
+  };
+
+  const handleScanMeal = async () => {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+
+      if (!permission.granted) {
+        Alert.alert(
+          "Camera Permission Needed",
+          "Allow camera access to scan a meal photo.",
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [4, 3],
+        quality: 0.75,
+      });
+
+      if (result.canceled || !result.assets?.[0]?.uri) {
+        return;
+      }
+
+      setCapturedPhotoUri(result.assets[0].uri);
+      setDraft(null);
+
+      await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    } catch (error: any) {
+      console.error(error);
+      Alert.alert(
+        "Camera Unavailable",
+        error?.message || "Unable to open the camera on this device.",
+      );
+    }
   };
 
   return (
@@ -231,11 +327,10 @@ export default function AddMealScreen() {
       </View>
 
       <View style={styles.hero}>
-        <Text style={styles.eyebrow}>ChopperHub v2</Text>
         <Text style={styles.title}>Log a meal</Text>
         <BodyText muted style={styles.subtitle}>
-          Describe what you ate, choose a portion, and save a clean meal draft.
-          Voice and scan are staged for the next backend step.
+          Type, speak, or scan a meal. Review the nutrient estimate before it
+          updates Home and Tracker.
         </BodyText>
       </View>
 
@@ -244,39 +339,93 @@ export default function AddMealScreen() {
         value={logMode}
         onChange={(mode) => {
           setLogMode(mode);
-          if (mode !== "type") {
-            handleUnavailableMode();
+          if (mode === "scan") {
+            void handleScanMeal();
           }
         }}
       />
 
+      {logMode === "speak" && (
+        <Card style={styles.voiceCard}>
+          <SectionHeader
+            title="Speak your meal"
+            subtitle="Record a short meal description, then review the AI estimate."
+          />
+          <View style={styles.voiceStatusRow}>
+            <View style={styles.voiceIcon}>
+              <Ionicons
+                name={recorderState.isRecording ? "mic" : "mic-outline"}
+                size={20}
+                color={colors.primary}
+              />
+            </View>
+            <View style={styles.voiceCopy}>
+              <Text style={styles.voiceTitle}>
+                {recorderState.isRecording
+                  ? "Recording..."
+                  : transcribing
+                    ? "Transcribing..."
+                    : "Ready to record"}
+              </Text>
+              <BodyText muted>
+                {recorderState.isRecording
+                  ? `${Math.max(
+                      1,
+                      Math.round(recorderState.durationMillis / 1000),
+                    )}s captured`
+                  : "Say something like: rice, plantain, and chicken."}
+              </BodyText>
+            </View>
+          </View>
+
+          <AppButton
+            title={
+              recorderState.isRecording ? "Stop and transcribe" : "Start recording"
+            }
+            icon={
+              recorderState.isRecording ? "stop-circle-outline" : "mic-outline"
+            }
+            onPress={recorderState.isRecording ? stopRecording : startRecording}
+            loading={transcribing}
+          />
+        </Card>
+      )}
+
+      {capturedPhotoUri && (
+        <Card style={styles.photoCard}>
+          <SectionHeader
+            title="Meal photo"
+            subtitle="Photo is attached for the meal draft. Add a short description before estimating."
+          />
+          <Image source={{ uri: capturedPhotoUri }} style={styles.mealPhoto} />
+          <AppButton
+            title="Retake photo"
+            icon="camera-outline"
+            variant="secondary"
+            onPress={handleScanMeal}
+          />
+        </Card>
+      )}
+
       <Card style={styles.primaryCard}>
         <SectionHeader
           title="What did you eat?"
-          subtitle="Use normal words, like rice, plantain, and chicken."
+          subtitle="Give enough detail for the estimate: food, cooking method, drink, and portion if known."
         />
 
         <TextInput
           multiline
           style={styles.descriptionInput}
-          placeholder="Rice, fried plantain, and chicken"
+          placeholder="Rice, fried plantain, chicken, and a bottle of water"
           placeholderTextColor={colors.textMuted}
           value={mealDescription}
-          onChangeText={setMealDescription}
+          onChangeText={handleDescriptionChange}
           textAlignVertical="top"
-        />
-
-        <AppButton
-          title="Analyze meal"
-          icon="sparkles"
-          onPress={handleAnalyzeMeal}
-          loading={draftLoading}
-          disabled={logMode !== "type"}
         />
       </Card>
 
       <View style={styles.sectionBlock}>
-        <SectionHeader title="Meal type" subtitle="This keeps history easier to scan." />
+        <SectionHeader title="Meal type" subtitle="Helps organize your history." />
         <View style={styles.chipWrap}>
           {mealTypes.map((type) => (
             <Chip
@@ -284,21 +433,27 @@ export default function AddMealScreen() {
               label={type.label}
               icon={type.icon}
               selected={mealType === type.value}
-              onPress={() => setMealType(type.value)}
+              onPress={() => {
+                setMealType(type.value);
+                setDraft(null);
+              }}
             />
           ))}
         </View>
       </View>
 
       <View style={styles.sectionBlock}>
-        <SectionHeader title="Portion" subtitle="Avoid grams unless the user wants detail." />
+        <SectionHeader title="Portion" subtitle="Choose a simple estimate." />
         <View style={styles.chipWrap}>
           {portions.map((item) => (
             <Chip
               key={item.value}
               label={item.label}
               selected={portion === item.value}
-              onPress={() => setPortion(item.value)}
+              onPress={() => {
+                setPortion(item.value);
+                setDraft(null);
+              }}
             />
           ))}
         </View>
@@ -309,175 +464,122 @@ export default function AddMealScreen() {
             placeholder="Example: 1 plate, 2 wraps, 1 cup"
             placeholderTextColor={colors.textMuted}
             value={customPortion}
-            onChangeText={setCustomPortion}
+            onChangeText={(value) => {
+              setCustomPortion(value);
+              setDraft(null);
+            }}
           />
         )}
       </View>
 
-      <Card style={styles.estimateCard}>
-        <View style={styles.estimateHeader}>
-          <View style={styles.estimateIcon}>
-            <Ionicons name="sparkles" size={20} color={colors.primary} />
-          </View>
-          <View style={styles.estimateCopy}>
-            <Text style={styles.estimateTitle}>AI estimate preview</Text>
-            <BodyText muted>
-              Analyze a typed meal to draft ingredients, nutrition estimates,
-              and follow-up questions before saving.
-            </BodyText>
-          </View>
-        </View>
+      <Card style={styles.reviewCard}>
+        <SectionHeader
+          title="AI nutrient review"
+          subtitle="Confirm the estimate before it affects Home and Tracker."
+        />
 
-        <View style={styles.estimateRows}>
-          <View style={styles.estimateRow}>
-            <Text style={styles.estimateLabel}>Meal draft</Text>
-            <Text style={styles.estimateValue}>
-              {mealName || "Waiting for description"}
-            </Text>
-          </View>
-          <View style={styles.estimateRow}>
-            <Text style={styles.estimateLabel}>Calories</Text>
-            <Text style={styles.estimateValue}>
-              {mealDraft?.caloriesEstimateMin && mealDraft?.caloriesEstimateMax
-                ? `${mealDraft.caloriesEstimateMin}-${mealDraft.caloriesEstimateMax} kcal`
-                : estimatedCalories
-                  ? `${estimatedCalories} kcal`
-                  : "Analyze meal or add macros"}
-            </Text>
-          </View>
-        </View>
-
-        {mealDraft && (
-          <View style={styles.draftDetails}>
-            <View style={styles.draftMetaRow}>
-              <Text style={styles.confidenceBadge}>
-                {mealDraft.confidence} confidence
-              </Text>
-              <Text style={styles.draftMetaText}>
-                {mealDraft.ingredients.length} ingredients found
-              </Text>
-            </View>
-
-            {mealDraft.ingredients.length > 0 && (
-              <View style={styles.draftSection}>
-                <Text style={styles.estimateLabel}>Ingredients</Text>
-                <View style={styles.chipWrap}>
-                  {mealDraft.ingredients.map((ingredient) => (
-                    <Chip
-                      key={ingredient}
-                      label={ingredient}
-                      selected
-                      onPress={() => undefined}
-                    />
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {mealDraft.followUpQuestions.length > 0 && (
-              <View style={styles.draftSection}>
-                <Text style={styles.estimateLabel}>Follow-up questions</Text>
-                {mealDraft.followUpQuestions.slice(0, 3).map((question) => (
-                  <Text key={question} style={styles.questionText}>
-                    {question}
-                  </Text>
-                ))}
-              </View>
-            )}
-
-            {mealDraft.warnings.length > 0 && (
-              <BodyText muted>{mealDraft.warnings[0]}</BodyText>
-            )}
-          </View>
+        {draft ? (
+          <MealDraftReview draft={draft} />
+        ) : (
+          <BodyText muted>
+            Run the estimate after describing the meal. If AI is not ready yet,
+            no fake nutrients will be saved.
+          </BodyText>
         )}
-      </Card>
 
-      <Card style={styles.advancedCard}>
-        <View style={styles.advancedHeader}>
-          <SectionHeader
-            title="Nutrition details"
-            subtitle="Optional for users who know their macros."
-            style={styles.advancedHeaderCopy}
+        <View style={styles.actionBlock}>
+          <AppButton
+            title={draft ? "Re-estimate meal" : "Estimate nutrients"}
+            icon="sparkles"
+            onPress={handleAnalyzeMeal}
+            loading={analyzing}
+            disabled={saving}
           />
           <AppButton
-            title={advancedOpen ? "Hide" : "Edit"}
-            icon={advancedOpen ? "chevron-up" : "create-outline"}
+            title="Confirm and save"
+            icon="checkmark-circle"
+            onPress={handleConfirmSave}
+            loading={saving}
+            disabled={!draft || analyzing}
+          />
+          <AppButton
+            title="Clear draft"
+            icon="trash-outline"
             variant="secondary"
-            onPress={() => setAdvancedOpen((open) => !open)}
-            style={styles.smallButton}
+            onPress={handleClearMeal}
+            disabled={saving || analyzing}
           />
         </View>
-
-        {advancedOpen && (
-          <View style={styles.macroGrid}>
-            <TextInput
-              style={[styles.input, styles.macroInput]}
-              placeholder="Protein (g)"
-              placeholderTextColor={colors.textMuted}
-              keyboardType="numeric"
-              value={protein}
-              onChangeText={setProtein}
-            />
-            <TextInput
-              style={[styles.input, styles.macroInput]}
-              placeholder="Carbs (g)"
-              placeholderTextColor={colors.textMuted}
-              keyboardType="numeric"
-              value={carbs}
-              onChangeText={setCarbs}
-            />
-            <TextInput
-              style={[styles.input, styles.macroInput]}
-              placeholder="Fat (g)"
-              placeholderTextColor={colors.textMuted}
-              keyboardType="numeric"
-              value={fat}
-              onChangeText={setFat}
-            />
-            <TextInput
-              style={[styles.input, styles.macroInput]}
-              placeholder="Fibre (g)"
-              placeholderTextColor={colors.textMuted}
-              keyboardType="numeric"
-              value={fibre}
-              onChangeText={setFibre}
-            />
-            <TextInput
-              style={[styles.input, styles.macroInput]}
-              placeholder="Sugar (g)"
-              placeholderTextColor={colors.textMuted}
-              keyboardType="numeric"
-              value={sugar}
-              onChangeText={setSugar}
-            />
-            <TextInput
-              style={[styles.input, styles.macroInput]}
-              placeholder="Sodium (mg)"
-              placeholderTextColor={colors.textMuted}
-              keyboardType="numeric"
-              value={sodium}
-              onChangeText={setSodium}
-            />
-          </View>
-        )}
       </Card>
-
-      <View style={styles.actionBlock}>
-        <AppButton
-          title="Save meal"
-          icon="checkmark-circle"
-          onPress={handleAddMeal}
-          loading={loading}
-        />
-        <AppButton
-          title="Clear draft"
-          icon="trash-outline"
-          variant="secondary"
-          onPress={handleClearMeals}
-          disabled={loading}
-        />
-      </View>
     </Screen>
+  );
+}
+
+function MealDraftReview({ draft }: { draft: MealDraft }) {
+  const nutrients = [
+    { label: "Protein", value: metricValue(draft.protein, "g") },
+    { label: "Carbs", value: metricValue(draft.carbs, "g") },
+    { label: "Fat", value: metricValue(draft.fat, "g") },
+    { label: "Fibre", value: metricValue(draft.fibre, "g") },
+    { label: "Sugar", value: metricValue(draft.sugar, "g") },
+    { label: "Sodium", value: metricValue(draft.sodium, "mg") },
+    { label: "Water", value: metricValue(draft.water, "L") },
+  ];
+
+  return (
+    <View style={styles.draftBlock}>
+      <View style={styles.draftHeader}>
+        <View style={styles.draftTitleBlock}>
+          <Text style={styles.draftName}>{draft.name}</Text>
+          <Text style={styles.draftMeta}>
+            {draft.mealType} • {draft.portion}
+          </Text>
+        </View>
+        <Text style={styles.confidenceBadge}>{draft.confidence}</Text>
+      </View>
+
+      <View style={styles.calorieBox}>
+        <Text style={styles.inputLabel}>Calories</Text>
+        <Text style={styles.calorieValue}>
+          {draft.caloriesEstimateMin && draft.caloriesEstimateMax
+            ? `${Math.round(draft.caloriesEstimateMin)}-${Math.round(
+                draft.caloriesEstimateMax,
+              )} kcal`
+            : "Needs detail"}
+        </Text>
+      </View>
+
+      <View style={styles.nutritionGrid}>
+        {nutrients.map((item) => (
+          <View key={item.label} style={styles.nutritionTile}>
+            <Text style={styles.nutritionLabel}>{item.label}</Text>
+            <Text style={styles.nutritionValue}>{item.value}</Text>
+          </View>
+        ))}
+      </View>
+
+      {draft.ingredients.length > 0 && (
+        <View style={styles.resultBlock}>
+          <Text style={styles.inputLabel}>Ingredients understood</Text>
+          <Text style={styles.bodyText}>{draft.ingredients.join(", ")}</Text>
+        </View>
+      )}
+
+      {draft.followUpQuestions.length > 0 && (
+        <View style={styles.resultBlock}>
+          <Text style={styles.inputLabel}>Questions to improve accuracy</Text>
+          {draft.followUpQuestions.slice(0, 4).map((question) => (
+            <Text key={question} style={styles.questionText}>
+              {question}
+            </Text>
+          ))}
+        </View>
+      )}
+
+      {draft.warnings.length > 0 && (
+        <Text style={styles.warningText}>{draft.warnings[0]}</Text>
+      )}
+    </View>
   );
 }
 
@@ -495,12 +597,6 @@ const styles = StyleSheet.create({
   hero: {
     gap: spacing.sm,
   },
-  eyebrow: {
-    color: colors.secondary,
-    fontSize: 13,
-    fontWeight: "800",
-    textTransform: "uppercase",
-  },
   title: {
     ...typography.screenTitle,
   },
@@ -509,6 +605,40 @@ const styles = StyleSheet.create({
   },
   primaryCard: {
     gap: spacing.lg,
+  },
+  photoCard: {
+    gap: spacing.lg,
+  },
+  voiceCard: {
+    gap: spacing.lg,
+  },
+  voiceStatusRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  voiceIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: colors.secondary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  voiceCopy: {
+    flex: 1,
+  },
+  voiceTitle: {
+    color: colors.primary,
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: spacing.xs,
+  },
+  mealPhoto: {
+    width: "100%",
+    aspectRatio: 4 / 3,
+    borderRadius: radii.lg,
+    backgroundColor: colors.surfaceElevated,
   },
   descriptionInput: {
     minHeight: 116,
@@ -539,64 +669,37 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 15,
   },
-  estimateCard: {
+  reviewCard: {
     gap: spacing.lg,
   },
-  estimateHeader: {
-    flexDirection: "row",
+  actionBlock: {
     gap: spacing.md,
   },
-  estimateIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: colors.secondary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  estimateCopy: {
-    flex: 1,
-  },
-  estimateTitle: {
-    color: colors.primary,
-    fontSize: 17,
-    fontWeight: "800",
-    marginBottom: spacing.xs,
-  },
-  estimateRows: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-  },
-  estimateRow: {
-    paddingTop: spacing.md,
-    gap: spacing.xs,
-  },
-  estimateLabel: {
-    color: colors.textMuted,
-    fontSize: 12,
-    fontWeight: "800",
-    textTransform: "uppercase",
-  },
-  estimateValue: {
-    color: colors.primary,
-    fontSize: 15,
-    fontWeight: "700",
-    lineHeight: 22,
-  },
-  draftDetails: {
-    borderTopWidth: 1,
-    borderTopColor: colors.border,
-    paddingTop: spacing.lg,
+  draftBlock: {
     gap: spacing.lg,
   },
-  draftMetaRow: {
+  draftHeader: {
     flexDirection: "row",
-    alignItems: "center",
-    flexWrap: "wrap",
-    gap: spacing.sm,
+    alignItems: "flex-start",
+    gap: spacing.md,
+  },
+  draftTitleBlock: {
+    flex: 1,
+  },
+  draftName: {
+    color: colors.primary,
+    fontSize: 18,
+    fontWeight: "800",
+    lineHeight: 25,
+  },
+  draftMeta: {
+    color: colors.textMuted,
+    fontSize: 13,
+    fontWeight: "700",
+    marginTop: spacing.xs,
+    textTransform: "capitalize",
   },
   confidenceBadge: {
-    alignSelf: "flex-start",
     backgroundColor: "rgba(34, 197, 94, 0.16)",
     borderColor: "rgba(34, 197, 94, 0.32)",
     borderRadius: radii.pill,
@@ -608,43 +711,70 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
     textTransform: "capitalize",
   },
-  draftMetaText: {
+  calorieBox: {
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    gap: spacing.xs,
+  },
+  inputLabel: {
     color: colors.textMuted,
-    fontSize: 13,
-    fontWeight: "700",
+    fontSize: 12,
+    fontWeight: "800",
+    textTransform: "uppercase",
   },
-  draftSection: {
-    gap: spacing.sm,
+  calorieValue: {
+    color: colors.primary,
+    fontSize: 22,
+    fontWeight: "800",
   },
-  questionText: {
-    color: colors.text,
-    fontSize: 14,
-    lineHeight: 21,
-  },
-  advancedCard: {
-    gap: spacing.lg,
-  },
-  advancedHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.md,
-  },
-  advancedHeaderCopy: {
-    flex: 1,
-  },
-  smallButton: {
-    minHeight: 42,
-  },
-  macroGrid: {
+  nutritionGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.md,
   },
-  macroInput: {
-    flexBasis: "47%",
+  nutritionTile: {
+    flexBasis: "30%",
     flexGrow: 1,
+    minHeight: 76,
+    backgroundColor: colors.surfaceElevated,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    justifyContent: "space-between",
   },
-  actionBlock: {
-    gap: spacing.md,
+  nutritionLabel: {
+    color: colors.textMuted,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  nutritionValue: {
+    color: colors.primary,
+    fontSize: 15,
+    fontWeight: "800",
+    lineHeight: 20,
+  },
+  resultBlock: {
+    gap: spacing.sm,
+  },
+  bodyText: {
+    color: colors.primary,
+    fontSize: 15,
+    fontWeight: "600",
+    lineHeight: 23,
+  },
+  questionText: {
+    color: colors.primary,
+    fontSize: 14,
+    lineHeight: 21,
+  },
+  warningText: {
+    color: colors.warning,
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 19,
   },
 });

@@ -91,18 +91,49 @@ export const scheduleMealReminders = async (): Promise<void> => {
   await ensureAndroidChannel(Notifications);
   await Notifications.cancelAllScheduledNotificationsAsync();
 
-  await Notifications.scheduleNotificationAsync({
-    content: {
-      title: "Log today's meals",
-      body: "Keep your ChopperHub meal history up to date.",
-    },
-    trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.DAILY,
-      hour: 18,
+  const reminders = [
+    {
+      hour: 8,
       minute: 0,
-      channelId: ANDROID_CHANNEL_ID,
+      title: "Plan your first meal",
+      body: "Start the day with one meal logged or planned.",
     },
-  });
+    {
+      hour: 12,
+      minute: 30,
+      title: "Log lunch",
+      body: "Add your lunch while the details are still fresh.",
+    },
+    {
+      hour: 15,
+      minute: 30,
+      title: "Drink more water",
+      body: "Check your water intake and add a quick update.",
+    },
+    {
+      hour: 19,
+      minute: 30,
+      title: "Review your tracker",
+      body: "Open Tracker, review today, and plan the next meal.",
+    },
+  ];
+
+  await Promise.all(
+    reminders.map((reminder) =>
+      Notifications.scheduleNotificationAsync({
+        content: {
+          title: reminder.title,
+          body: reminder.body,
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.DAILY,
+          hour: reminder.hour,
+          minute: reminder.minute,
+          channelId: ANDROID_CHANNEL_ID,
+        },
+      }),
+    ),
+  );
 };
 
 export const cancelMealReminders = async (): Promise<void> => {

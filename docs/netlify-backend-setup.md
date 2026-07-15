@@ -28,9 +28,12 @@ PAYSTACK_SECRET_KEY
 PAYSTACK_MONTHLY_AMOUNT_KOBO=500000
 PAYSTACK_YEARLY_AMOUNT_KOBO=5000000
 FIREBASE_SERVICE_ACCOUNT_JSON
+POSTHOG_API_KEY
+POSTHOG_HOST=https://us.i.posthog.com
 ```
 
 `FIREBASE_SERVICE_ACCOUNT_JSON` must be the full Firebase service account JSON string for the same Firebase project used by the app.
+`POSTHOG_API_KEY` can use the same PostHog project token as the mobile app because it is a write-only analytics key.
 
 ## Deploy
 

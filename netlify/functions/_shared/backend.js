@@ -45,16 +45,73 @@ const requireUser = async (event) => {
   return getAdmin().auth().verifyIdToken(token);
 };
 
+const getFunctionName = (event) => {
+  const path = event.path ?? "";
+  return path.split("/").filter(Boolean).pop() ?? "unknown";
+};
+
+const captureBackendEvent = async ({ user, event, properties = {} }) => {
+  const apiKey = process.env.POSTHOG_API_KEY ?? process.env.EXPO_PUBLIC_POSTHOG_KEY;
+  const host = (process.env.POSTHOG_HOST ?? process.env.EXPO_PUBLIC_POSTHOG_HOST ?? "https://us.i.posthog.com").replace(/\/$/, "");
+
+  if (!apiKey) return;
+
+  try {
+    await fetch(`${host}/capture/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: apiKey,
+        event,
+        distinct_id: user?.uid ?? "anonymous-backend-request",
+        properties: {
+          source: "netlify-functions",
+          user_email_verified: user?.email_verified ?? null,
+          ...properties,
+        },
+      }),
+    });
+  } catch (error) {
+    console.error("POSTHOG BACKEND CAPTURE ERROR:", error);
+  }
+};
+
 const withHandler = (handler) => async (event) => {
   if (event.httpMethod === "OPTIONS") return json(200, { ok: true });
   if (event.httpMethod !== "POST") return json(405, { error: "Method not allowed." });
 
+  let user = null;
+  const functionName = getFunctionName(event);
+  const startedAt = Date.now();
+
   try {
-    const user = await requireUser(event);
+    user = await requireUser(event);
     const body = parseBody(event);
-    return json(200, await handler({ event, user, body }));
+    const result = await handler({ event, user, body });
+
+    await captureBackendEvent({
+      user,
+      event: "backend function succeeded",
+      properties: {
+        function_name: functionName,
+        duration_ms: Date.now() - startedAt,
+      },
+    });
+
+    return json(200, result);
   } catch (error) {
     console.error("NETLIFY FUNCTION ERROR:", error);
+    await captureBackendEvent({
+      user,
+      event: "backend function failed",
+      properties: {
+        function_name: functionName,
+        duration_ms: Date.now() - startedAt,
+        status_code: error.statusCode ?? 500,
+        error_message: error.message ?? "Request failed.",
+      },
+    });
+
     return json(error.statusCode ?? 500, {
       error: error.message ?? "Request failed.",
     });
@@ -194,6 +251,7 @@ module.exports = {
   activateSubscription,
   callGroqJson,
   cleanText,
+  captureBackendEvent,
   crypto,
   getAdmin,
   getPlanConfig,

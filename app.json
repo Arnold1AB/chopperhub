@@ -72,6 +72,8 @@
       "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "432377290151",
       "EXPO_PUBLIC_FIREBASE_APP_ID": "1:432377290151:web:5d5765a93963cc6881aa82",
       "EXPO_PUBLIC_CHOPPERHUB_API_URL": "https://chopperhub.netlify.app",
+      "EXPO_PUBLIC_POSTHOG_KEY": "phc_uAocsSTDABsWhFwNp6kg4GJEC6dvqvcMnT8kioprOyUC",
+      "EXPO_PUBLIC_POSTHOG_HOST": "https://us.i.posthog.com",
       "eas": {
         "projectId": "b8faad3a-84cc-4623-b1c2-eac2d0f2f18f"
       }

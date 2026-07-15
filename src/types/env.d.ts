@@ -8,5 +8,7 @@ declare namespace NodeJS {
     EXPO_PUBLIC_FIREBASE_APP_ID: string;
     EXPO_PUBLIC_CHOPPERHUB_API_URL: string;
     EXPO_PUBLIC_PAYSTACK_PUBLIC_KEY: string;
+    EXPO_PUBLIC_POSTHOG_KEY?: string;
+    EXPO_PUBLIC_POSTHOG_HOST?: string;
   }
 }

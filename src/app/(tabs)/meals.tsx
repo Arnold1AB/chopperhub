@@ -1,8 +1,17 @@
-import { getMeals, Meal } from "@/lib/meals";
+import { analyzeMealDraft } from "@/lib/mealDraft";
+import { getMeals, Meal, updateMealEstimate } from "@/lib/meals";
 import { colors, globalStyles } from "@/styles/global";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 type GroupedMeals = {
   [date: string]: Meal[];
@@ -10,6 +19,7 @@ type GroupedMeals = {
 
 export default function MealsScreen() {
   const [groupedMeals, setGroupedMeals] = useState<GroupedMeals>({});
+  const [estimatingMealId, setEstimatingMealId] = useState<string | null>(null);
 
   const groupMealsByDate = useCallback((meals: Meal[]) => {
     const grouped: GroupedMeals = {};
@@ -61,6 +71,47 @@ export default function MealsScreen() {
 
   const dates = Object.keys(groupedMeals);
 
+  const handleEstimateMeal = async (meal: Meal) => {
+    try {
+      setEstimatingMealId(meal.id);
+
+      const draft = await analyzeMealDraft({
+        description: meal.name,
+        mealType: meal.meal_type ?? "unknown",
+        portion: meal.portion_label ?? "unknown",
+        imageUrl: meal.image_url ?? undefined,
+      });
+
+      await updateMealEstimate(meal.id, {
+        name: draft.name.trim() || meal.name,
+        protein: draft.protein,
+        carbs: draft.carbs,
+        fat: draft.fat,
+        fibre: draft.fibre,
+        sugar: draft.sugar,
+        sodium: draft.sodium,
+        water: draft.water,
+        meal_type: draft.mealType,
+        calories_min: draft.caloriesEstimateMin,
+        calories_max: draft.caloriesEstimateMax,
+        confidence: draft.confidence,
+        ingredients: draft.ingredients,
+        follow_up_questions: draft.followUpQuestions,
+      });
+
+      await loadMeals();
+      Alert.alert("Meal Estimated", "Nutrients have been added to this meal.");
+    } catch (error: any) {
+      console.log("MEAL ESTIMATE ERROR:", error);
+      Alert.alert(
+        "Estimator Unavailable",
+        error?.message || "Unable to estimate this meal right now.",
+      );
+    } finally {
+      setEstimatingMealId(null);
+    }
+  };
+
   return (
     <ScrollView
       style={globalStyles.container}
@@ -84,6 +135,7 @@ export default function MealsScreen() {
               const fat = Number(meal.fat || 0);
 
               const calories = protein * 4 + carbs * 4 + fat * 9;
+              const needsEstimate = protein + carbs + fat === 0;
 
               const time = new Date(meal.created_at).toLocaleTimeString([], {
                 hour: "2-digit",
@@ -107,6 +159,23 @@ export default function MealsScreen() {
 
                     <Text style={styles.stat}>F {fat.toFixed(0)}g</Text>
                   </View>
+
+                  {needsEstimate && (
+                    <TouchableOpacity
+                      style={styles.estimateButton}
+                      activeOpacity={0.86}
+                      disabled={estimatingMealId === meal.id}
+                      onPress={() => handleEstimateMeal(meal)}
+                    >
+                      {estimatingMealId === meal.id ? (
+                        <ActivityIndicator color="#0F172A" size="small" />
+                      ) : (
+                        <Text style={styles.estimateButtonText}>
+                          Estimate nutrients
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  )}
                 </View>
               );
             })}
@@ -185,5 +254,21 @@ const styles = StyleSheet.create({
   stat: {
     color: colors.textMuted,
     fontSize: 13,
+  },
+
+  estimateButton: {
+    alignItems: "center",
+    backgroundColor: colors.secondary,
+    borderRadius: 12,
+    justifyContent: "center",
+    marginTop: 14,
+    minHeight: 42,
+    paddingHorizontal: 14,
+  },
+
+  estimateButtonText: {
+    color: "#0F172A",
+    fontSize: 13,
+    fontWeight: "800",
   },
 });

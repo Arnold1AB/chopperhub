@@ -110,7 +110,7 @@ export default function AddMealScreen() {
     if (!mealDescription.trim()) {
       Alert.alert(
         "Missing Meal",
-        "Describe what you ate before running the nutrient estimate.",
+        "Describe what you ate before saving the meal.",
       );
       return false;
     }
@@ -153,45 +153,47 @@ export default function AddMealScreen() {
   };
 
   const handleConfirmSave = async () => {
-    if (!draft) {
-      await handleAnalyzeMeal();
-      return;
-    }
+    if (!validateMealInput()) return;
 
     try {
       setSaving(true);
 
+      const source =
+        logMode === "scan" && capturedPhotoUri
+          ? "photo"
+          : logMode === "speak"
+            ? "voice"
+            : "typed";
+
       await addMeal({
-        name: draft.name.trim() || mealDescription.trim(),
+        name: draft?.name.trim() || mealDescription.trim(),
         quantity: portionMultipliers[portion],
-        protein: draft.protein,
-        carbs: draft.carbs,
-        fat: draft.fat,
-        fibre: draft.fibre,
-        sugar: draft.sugar,
-        sodium: draft.sodium,
-        water: draft.water,
-        meal_type: draft.mealType,
+        protein: draft?.protein ?? 0,
+        carbs: draft?.carbs ?? 0,
+        fat: draft?.fat ?? 0,
+        fibre: draft?.fibre ?? 0,
+        sugar: draft?.sugar ?? 0,
+        sodium: draft?.sodium ?? 0,
+        water: draft?.water ?? 0,
+        meal_type: draft?.mealType ?? mealType,
         portion_label: portionLabel,
-        calories_min: draft.caloriesEstimateMin,
-        calories_max: draft.caloriesEstimateMax,
-        confidence: draft.confidence,
-        ingredients: draft.ingredients,
-        follow_up_questions: draft.followUpQuestions,
-        source:
-          logMode === "scan" && capturedPhotoUri
-            ? "photo"
-            : logMode === "speak"
-              ? "voice"
-              : "typed",
+        calories_min: draft?.caloriesEstimateMin ?? null,
+        calories_max: draft?.caloriesEstimateMax ?? null,
+        confidence: draft?.confidence ?? null,
+        ingredients: draft?.ingredients ?? [],
+        follow_up_questions: draft?.followUpQuestions ?? [],
+        source,
         image_url: capturedPhotoUri,
+        voice_transcript: source === "voice" ? mealDescription.trim() : null,
       });
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
       Alert.alert(
         "Meal Saved",
-        "Home totals and Tracker analysis will update from this meal.",
+        draft
+          ? "Home totals and Tracker analysis will update from this meal."
+          : "The meal was saved. You can estimate nutrients later when the AI backend is ready.",
       );
 
       clearForm();
@@ -474,8 +476,8 @@ export default function AddMealScreen() {
 
       <Card style={styles.reviewCard}>
         <SectionHeader
-          title="AI nutrient review"
-          subtitle="Confirm the estimate before it affects Home and Tracker."
+            title="AI nutrient review"
+            subtitle="Estimate now for nutrients, or save the meal and estimate later."
         />
 
         {draft ? (
@@ -496,11 +498,11 @@ export default function AddMealScreen() {
             disabled={saving}
           />
           <AppButton
-            title="Confirm and save"
+            title={draft ? "Save meal with estimate" : "Save meal"}
             icon="checkmark-circle"
             onPress={handleConfirmSave}
             loading={saving}
-            disabled={!draft || analyzing}
+            disabled={analyzing}
           />
           <AppButton
             title="Clear draft"

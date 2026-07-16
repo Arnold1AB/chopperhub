@@ -9,6 +9,7 @@ import {
   orderBy,
   query,
   serverTimestamp,
+  updateDoc,
   where,
   writeBatch,
 } from "firebase/firestore";
@@ -61,6 +62,24 @@ export type AddMealInput = {
   image_url?: string | null;
   voice_transcript?: string | null;
 };
+
+export type UpdateMealEstimateInput = Pick<
+  AddMealInput,
+  | "name"
+  | "protein"
+  | "carbs"
+  | "fat"
+  | "fibre"
+  | "sugar"
+  | "sodium"
+  | "water"
+  | "meal_type"
+  | "calories_min"
+  | "calories_max"
+  | "confidence"
+  | "ingredients"
+  | "follow_up_questions"
+>;
 
 const userMealsCollection = (uid: string) =>
   collection(db, "users", uid, "meals");
@@ -145,6 +164,32 @@ export async function addMeal(meal: AddMealInput): Promise<Meal> {
   const created = await addDoc(userMealsCollection(user.uid), payload);
 
   return normalizeMeal(created.id, user.uid, payload);
+}
+
+export async function updateMealEstimate(
+  id: string,
+  estimate: UpdateMealEstimateInput,
+): Promise<void> {
+  const user = requireCurrentUser();
+
+  await updateDoc(doc(db, "users", user.uid, "meals", id), {
+    name: estimate.name.trim(),
+    protein: toNumber(estimate.protein),
+    carbs: toNumber(estimate.carbs),
+    fat: toNumber(estimate.fat),
+    fibre: toNumber(estimate.fibre),
+    sugar: toNumber(estimate.sugar),
+    sodium: toNumber(estimate.sodium),
+    water: toNumber(estimate.water),
+    meal_type: estimate.meal_type ?? null,
+    calories_min: estimate.calories_min ?? null,
+    calories_max: estimate.calories_max ?? null,
+    confidence: estimate.confidence ?? null,
+    ingredients: estimate.ingredients ?? [],
+    follow_up_questions: estimate.follow_up_questions ?? [],
+    updated_at: new Date().toISOString(),
+    updatedAt: serverTimestamp(),
+  });
 }
 
 export async function deleteMeal(id: string): Promise<void> {

@@ -150,7 +150,7 @@ const callGroqJson = async ({ model, system, user, temperature = 0.2 }) => {
       ],
     }),
   });
-  const payload = await response.json();
+  const payload = await response.json().catch(() => ({}));
 
   if (!response.ok) {
     console.error("GROQ ERROR:", payload);
@@ -166,7 +166,14 @@ const callGroqJson = async ({ model, system, user, temperature = 0.2 }) => {
     throw error;
   }
 
-  return extractJson(content);
+  try {
+    return extractJson(content);
+  } catch (parseError) {
+    console.error("GROQ JSON PARSE ERROR:", parseError, content);
+    const error = new Error("Groq returned an invalid meal analysis response.");
+    error.statusCode = 502;
+    throw error;
+  }
 };
 
 const addDays = (date, days) => {

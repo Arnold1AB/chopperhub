@@ -1,8 +1,11 @@
-import { supabase } from "@/lib/supabase";
 import { getProfileCompletion } from "@/lib/profileCompletion";
+import { auth } from "@/lib/firebase";
+import { clearAllMeals } from "@/lib/meals";
+import { deleteUserProfile, getCurrentUser, getUserProfile } from "@/lib/profile";
 import { colors, globalStyles } from "@/styles/global";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
+import { signOut } from "firebase/auth";
 import { useCallback, useState } from "react";
 import {
   Alert,
@@ -15,12 +18,12 @@ import {
 } from "react-native";
 
 type Profile = {
-  first_name?: string;
-  last_name?: string;
-  profession?: string;
-  phone?: string;
-  food_preference?: string;
-  email?: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  profession?: string | null;
+  phone?: string | null;
+  food_preference?: string | null;
+  email?: string | null;
   onboarding_complete?: boolean;
 };
 
@@ -29,23 +32,11 @@ export default function ProfileScreen() {
 
   const loadProfile = useCallback(async () => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = getCurrentUser();
 
       if (!user) return;
 
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (error) {
-        console.log("PROFILE ERROR:", error);
-        setProfile(null);
-        return;
-      }
+      const data = await getUserProfile(user.uid);
 
       setProfile(data);
     } catch (error) {
@@ -104,13 +95,7 @@ Build better habits.
         text: "Sign Out",
         style: "destructive",
         onPress: async () => {
-          const { error } = await supabase.auth.signOut();
-
-          if (error) {
-            Alert.alert("Error", error.message);
-            return;
-          }
-
+          await signOut(auth);
           router.replace("/signin");
         },
       },
@@ -155,36 +140,16 @@ Build better habits.
 
   const handleDeleteMyData = async () => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = getCurrentUser();
 
       if (!user) {
         Alert.alert("Error", "User not found");
         return;
       }
 
-      const mealsResult = await supabase
-        .from("meals")
-        .delete()
-        .eq("user_id", user.id);
-
-      if (mealsResult.error) {
-        Alert.alert("Meals Error", mealsResult.error.message);
-        return;
-      }
-
-      const profileResult = await supabase
-        .from("profiles")
-        .delete()
-        .eq("id", user.id);
-
-      if (profileResult.error) {
-        Alert.alert("Profile Error", profileResult.error.message);
-        return;
-      }
-
-      await supabase.auth.signOut();
+      await clearAllMeals();
+      await deleteUserProfile(user.uid);
+      await signOut(auth);
 
       router.replace("/signin");
     } catch (error) {

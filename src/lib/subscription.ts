@@ -1,4 +1,5 @@
-import { supabase } from "@/lib/supabase";
+import { postToApi } from "@/lib/apiClient";
+import { getUserProfile, requireCurrentUser } from "@/lib/profile";
 
 export type SubscriptionPlan = "monthly" | "yearly";
 
@@ -25,7 +26,7 @@ export const subscriptionPlans: Record<
     priceUsd: "$3",
     priceNaira: "Naira equivalent",
     cadence: "per month",
-    description: "Full meal tracking, Meal-lysis insights, and reminders.",
+    description: "Full meal tracking, nutrition analysis, and reminders.",
   },
   yearly: {
     label: "Yearly",
@@ -47,69 +48,12 @@ const addDays = (date: Date, days: number) => {
 const daysUntil = (date: Date) =>
   Math.max(0, Math.ceil((date.getTime() - Date.now()) / 86400000));
 
-const createTrialAccess = (startedAt: Date): SubscriptionAccess => {
-  const trialEndsAt = addDays(startedAt, TRIAL_DAYS);
-
-  return {
-    hasAccess: true,
-    status: "trialing",
-    trialEndsAt,
-    subscriptionExpiresAt: null,
-    daysRemaining: daysUntil(trialEndsAt),
-  };
-};
-
-const getFunctionErrorMessage = async (error: unknown) => {
-  const context = (error as { context?: Response })?.context;
-
-  if (context) {
-    try {
-      const payload = await context.clone().json();
-
-      if (typeof payload?.error === "string") {
-        return payload.error;
-      }
-
-      if (typeof payload?.message === "string") {
-        return payload.message;
-      }
-    } catch {
-      // Fall through to the generic message below.
-    }
-  }
-
-  const message = error instanceof Error ? error.message : "";
-
-  if (message.includes("non-2xx")) {
-    return "Payment backend is not ready yet. Please deploy the Paystack Edge Functions and confirm the Paystack secrets are set in Supabase.";
-  }
-
-  return message || "Payment service is unavailable right now.";
-};
-
 export const getSubscriptionAccess = async (): Promise<SubscriptionAccess> => {
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    throw new Error("Please sign in to continue.");
-  }
-
-  const { data: profile, error } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (error) {
-    console.warn("Subscription fields unavailable; allowing trial access.", error);
-    return createTrialAccess(new Date(user.created_at ?? Date.now()));
-  }
-
+  const user = requireCurrentUser();
+  const profile = await getUserProfile(user.uid);
   const now = new Date();
   const trialStartedAt = new Date(
-    profile?.trial_started_at ?? profile?.created_at ?? user.created_at ?? now,
+    profile?.trial_started_at ?? profile?.created_at ?? user.metadata.creationTime ?? now,
   );
   const subscriptionExpiresAt = profile?.subscription_expires_at
     ? new Date(profile.subscription_expires_at)
@@ -131,62 +75,40 @@ export const getSubscriptionAccess = async (): Promise<SubscriptionAccess> => {
   };
 };
 
-export const initializePaystackCheckout = async (plan: SubscriptionPlan) => {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+export const initializePaystackCheckout = async (
+  plan: SubscriptionPlan,
+  callbackUrl?: string,
+) => {
+  requireCurrentUser();
 
-  if (!session) {
-    throw new Error("Please sign in before subscribing.");
-  }
-
-  const { data, error } = await supabase.functions.invoke(
-    "paystack-initialize",
-    {
-      body: { plan },
-      headers: {
-        Authorization: `Bearer ${session.access_token}`,
-      },
-    },
-  );
-
-  if (error) {
-    throw new Error(await getFunctionErrorMessage(error));
-  }
+  const data = await postToApi<{
+    authorization_url?: string;
+    access_code?: string;
+    reference?: string;
+    error?: string;
+  }>("/.netlify/functions/create-paystack-checkout", { plan, callbackUrl });
 
   if (!data?.authorization_url || !data?.reference) {
-    throw new Error("Unable to start checkout.");
+    throw new Error(data?.error ?? "Unable to start checkout.");
   }
 
-  return data as {
-    authorization_url: string;
-    access_code: string;
-    reference: string;
+  return {
+    authorization_url: data.authorization_url,
+    access_code: data.access_code ?? "",
+    reference: data.reference,
   };
 };
 
 export const verifyPaystackCheckout = async (reference: string) => {
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  requireCurrentUser();
 
-  if (!session) {
-    throw new Error("Please sign in before verifying payment.");
-  }
-
-  const { data, error } = await supabase.functions.invoke("paystack-verify", {
-    body: { reference },
-    headers: {
-      Authorization: `Bearer ${session.access_token}`,
-    },
-  });
-
-  if (error) {
-    throw new Error(await getFunctionErrorMessage(error));
-  }
+  const data = await postToApi<{
+    active?: boolean;
+    error?: string;
+  }>("/.netlify/functions/verify-paystack-payment", { reference });
 
   if (!data?.active) {
-    throw new Error("Payment has not been confirmed yet.");
+    throw new Error(data?.error ?? "Payment has not been confirmed yet.");
   }
 
   return data;

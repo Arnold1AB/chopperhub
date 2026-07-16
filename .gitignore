@@ -8,6 +8,7 @@ node_modules/
 dist/
 web-build/
 expo-env.d.ts
+*.apk
 
 # Native
 .kotlin/
@@ -45,3 +46,15 @@ app-example
 # git -version control
 .env
 .env.local
+supabase/.temp/
+
+# Local Netlify folder
+.netlify
+
+# local IDE and agent workspace files
+.idea/
+.codex/
+.claude/
+
+# local build outputs
+chopperhub-preview.apk

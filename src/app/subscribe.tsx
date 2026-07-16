@@ -57,7 +57,7 @@ export default function SubscribeScreen() {
     try {
       setProcessingPlan(plan);
 
-      const checkout = await initializePaystackCheckout(plan);
+      const checkout = await initializePaystackCheckout(plan, callbackUrl);
       const result = await WebBrowser.openAuthSessionAsync(
         checkout.authorization_url,
         callbackUrl,
@@ -107,8 +107,8 @@ export default function SubscribeScreen() {
 
       <Text style={globalStyles.title}>Choose Access</Text>
       <Text style={styles.subtitle}>
-        Start with 14 days free. Continue with meal tracking, Meal-lysis
-        insights, and daily food and water reminders when your trial ends.
+        Start with 14 days free. Continue with meal tracking, nutrition
+        analysis, and daily food and water reminders when your trial ends.
       </Text>
 
       <View style={styles.trialCard}>

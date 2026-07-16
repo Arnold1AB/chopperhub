@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { getCurrentUser, getUserProfile, setReminderPreference } from "@/lib/profile";
 import { colors } from "@/styles/global";
 import {
   cancelMealReminders,
@@ -17,22 +17,11 @@ export default function ReminderToggle() {
 
   const loadReminderPreference = async () => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = getCurrentUser();
 
       if (!user) return;
 
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("reminders_enabled")
-        .eq("id", user.id)
-        .maybeSingle();
-
-      if (error) {
-        console.log(error);
-        return;
-      }
+      const data = await getUserProfile(user.uid);
 
       setEnabled(data?.reminders_enabled ?? false);
     } catch (error) {
@@ -42,9 +31,7 @@ export default function ReminderToggle() {
 
   const toggle = async (value: boolean) => {
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const user = getCurrentUser();
 
       if (!user) return;
 
@@ -58,17 +45,7 @@ export default function ReminderToggle() {
         await cancelMealReminders();
       }
 
-      const { error } = await supabase
-        .from("profiles")
-        .update({
-          reminders_enabled: value,
-        })
-        .eq("id", user.id);
-
-      if (error) {
-        console.log(error);
-        return;
-      }
+      await setReminderPreference(value);
 
       setEnabled(value);
     } catch (error) {

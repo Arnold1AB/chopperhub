@@ -6,5 +6,13 @@ module.exports = defineConfig([
   expoConfig,
   {
     ignores: ["dist/*"],
-  }
+  },
+  {
+    files: ["netlify/functions/**/*.js"],
+    languageOptions: {
+      globals: {
+        Buffer: "readonly",
+      },
+    },
+  },
 ]);

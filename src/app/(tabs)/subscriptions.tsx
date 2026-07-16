@@ -34,7 +34,7 @@ const monthlyFeatures = [
 
 const yearlyFeatures = [
   "Everything in Monthly",
-  "Advanced Meal-lysis analytics",
+  "Advanced nutrition analysis",
   "Priority support access",
   "Save 17% vs monthly",
 ];

@@ -36,8 +36,8 @@
         {
           "android": {
             "enableBundleCompression": true,
-            "enableMinifyInReleaseBuilds": true,
-            "enableShrinkResourcesInReleaseBuilds": true,
+            "enableMinifyInReleaseBuilds": false,
+            "enableShrinkResourcesInReleaseBuilds": false,
             "enablePngCrunchInReleaseBuilds": true,
             "networkInspector": false,
             "useLegacyPackaging": true

@@ -2,6 +2,11 @@
 
 AI-assisted meal tracking for users who want a faster way to log food, understand nutrient patterns, and build consistent nutrition habits.
 
+Download and test application build:
+```text
+https://expo.dev/accounts/arnoldab79/projects/chopperhub/builds/e0dbc2d0-c632-4d38-aa34-f085fa471695
+```
+
 ## Portfolio URL
 
 Use this repository as the project URL:

@@ -4,7 +4,7 @@ AI-assisted meal tracking for users who want a faster way to log food, understan
 
 Download and test application build:
 ```text
-https://expo.dev/accounts/arnoldab79/projects/chopperhub/builds/e0dbc2d0-c632-4d38-aa34-f085fa471695
+https://expo.dev/accounts/arnoldab79/projects/chopperhub/builds/f6d6c968-5ca7-46f6-a8a8-a8678cb98136
 ```
 
 ## Portfolio URL

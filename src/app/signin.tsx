@@ -38,7 +38,7 @@ export default function SignInScreen() {
       );
 
       if (user) {
-        router.replace("/");
+        router.replace("/(tabs)/home");
       }
     } catch (error: any) {
       console.log(error);

@@ -2,7 +2,10 @@ import { auth } from "@/lib/firebase";
 import { createUserProfile } from "@/lib/profile";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { createUserWithEmailAndPassword } from "firebase/auth";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+} from "firebase/auth";
 import { useState } from "react";
 import {
   Alert,
@@ -27,6 +30,7 @@ export default function SignUpScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const clearForm = () => {
     setFullName("");
@@ -40,6 +44,8 @@ export default function SignUpScreen() {
 
   const handleSignUp = async () => {
     try {
+      setSubmitting(true);
+
       if (
         !fullName.trim() ||
         !email.trim() ||
@@ -60,9 +66,10 @@ export default function SignUpScreen() {
         return;
       }
 
+      const normalizedEmail = email.trim().toLowerCase();
       const credential = await createUserWithEmailAndPassword(
         auth,
-        email.trim().toLowerCase(),
+        normalizedEmail,
         password,
       );
 
@@ -81,12 +88,46 @@ export default function SignUpScreen() {
         subscription_status: "trialing",
       });
 
-      router.replace("/");
+      router.replace("/(tabs)/home");
       clearForm();
     } catch (error: any) {
       console.log("SIGNUP ERROR:", error);
-      clearForm();
+
+      if (error?.code === "auth/email-already-in-use") {
+        try {
+          await signInWithEmailAndPassword(
+            auth,
+            email.trim().toLowerCase(),
+            password,
+          );
+          router.replace("/(tabs)/home");
+          clearForm();
+          return;
+        } catch (signInError) {
+          console.log("SIGNUP FALLBACK SIGNIN ERROR:", signInError);
+          Alert.alert(
+            "Account Already Exists",
+            "This email already has an account. Use Sign In, or tap Forgot password if you cannot remember the password.",
+          );
+          return;
+        }
+      }
+
+      if (error?.code === "auth/weak-password") {
+        Alert.alert("Weak Password", "Use at least 6 characters.");
+        setPassword("");
+        setConfirmPassword("");
+        return;
+      }
+
+      if (error?.code === "auth/invalid-email") {
+        Alert.alert("Invalid Email", "Enter a valid email address.");
+        return;
+      }
+
       Alert.alert("Sign Up Failed", error?.message || "Unable to create account.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -173,8 +214,14 @@ export default function SignUpScreen() {
           </TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={styles.button} onPress={handleSignUp}>
-          <Text style={styles.buttonText}>Sign Up</Text>
+        <TouchableOpacity
+          style={[styles.button, submitting && styles.buttonDisabled]}
+          onPress={handleSignUp}
+          disabled={submitting}
+        >
+          <Text style={styles.buttonText}>
+            {submitting ? "Creating account..." : "Sign Up"}
+          </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -254,6 +301,9 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: "center",
     marginTop: 10,
+  },
+  buttonDisabled: {
+    opacity: 0.65,
   },
   buttonText: {
     color: "#fff",
